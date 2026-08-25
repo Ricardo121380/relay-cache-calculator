@@ -1,0 +1,12 @@
+{
+  "name": "中转站缓存成本计算器",
+  "short_name": "缓存计算器",
+  "description": "输入模型单价、倍率与缓存命中率，换算每 1M token 成本和预算可用量。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f6fa",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

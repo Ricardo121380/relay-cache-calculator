@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-24T10:52:00Z",
+  "title": "Design System: Cache Lens",
+  "extensions": {
+    "colorMeta": {
+      "cache-teal": {
+        "role": "primary",
+        "displayName": "缓存青绿",
+        "canonical": "#087f79",
+        "tonalRamp": ["#062c2a", "#07514d", "#087f79", "#13b5aa", "#55d2c9", "#8ee3dc", "#c2efeb", "#ebfaf8"]
+      },
+      "optical-sky": {
+        "role": "neutral",
+        "displayName": "光学雾蓝",
+        "canonical": "#eaf0f7",
+        "tonalRamp": ["#18212c", "#303f51", "#53667c", "#8192a7", "#aebdce", "#ced9e5", "#eaf0f7", "#f8fbff"]
+      },
+      "midnight-field": {
+        "role": "neutral",
+        "displayName": "午夜光场",
+        "canonical": "#09131f",
+        "tonalRamp": ["#050b13", "#09131f", "#102238", "#223c57", "#496580", "#8298ae", "#bbc9d8", "#edf3f8"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "实时结论", "purpose": "每 1M 成本与预算 token 主结论。" },
+      "body": { "displayName": "系统正文", "purpose": "表单、帮助和状态说明。" },
+      "data": { "displayName": "运算数据", "purpose": "倍率、价格、百分比和公式。" }
+    },
+    "shadows": [
+      { "name": "reading-layer", "value": "0 12px 30px rgba(34, 53, 78, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72)", "purpose": "稳定表单与数据阅读卡。" },
+      { "name": "functional-glass", "value": "0 18px 48px rgba(28, 48, 73, 0.12), 0 2px 8px rgba(28, 48, 73, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.92)", "purpose": "顶栏、控件组与结果镜片。" }
+    ],
+    "motion": [
+      { "name": "optical-state", "value": "280ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "模式切换、焦点和结果变化。" },
+      { "name": "fast-control", "value": "180ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "按钮与输入状态。" }
+    ],
+    "breakpoints": [
+      { "name": "toolbar-wrap", "value": "1180px" },
+      { "name": "single-column", "value": "1080px" },
+      { "name": "compact", "value": "720px" },
+      { "name": "mobile", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "用于复制结果和读取站点的主要操作。",
+      "html": "<button class=\"ds-btn-primary\">复制结果</button>",
+      "css": ".ds-btn-primary{min-height:44px;padding:10px 18px;border-radius:999px;border:1px solid rgba(255,255,255,.46);background:linear-gradient(145deg,#119c94,#066c67 72%);color:#fff;font:600 14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;box-shadow:0 10px 26px rgba(5,95,91,.26),inset 0 1px 0 rgba(255,255,255,.5);transition:transform 180ms cubic-bezier(.16,1,.3,1),box-shadow 180ms cubic-bezier(.16,1,.3,1)}.ds-btn-primary:hover{transform:translateY(-1px);box-shadow:0 14px 34px rgba(5,95,91,.32),inset 0 1px 0 rgba(255,255,255,.58)}.ds-btn-primary:focus-visible{outline:2px solid #087f79;outline-offset:3px}.ds-btn-primary:active{transform:scale(.98)}"
+    },
+    {
+      "name": "Glass Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "稳定、可读的半透明参数输入。",
+      "html": "<label class=\"ds-field\">模型倍率<input class=\"ds-input\" value=\"1.2\"></label>",
+      "css": ".ds-field{display:grid;gap:7px;color:#32445d;font:600 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-input{min-height:46px;padding:11px 14px;border:1px solid rgba(73,94,122,.3);border-radius:12px;background:rgba(255,255,255,.36);color:#0b1728;font:15px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;outline:none}.ds-input:focus{border-color:#087f79;box-shadow:0 0 0 3px rgba(8,127,121,.13)}"
+    },
+    {
+      "name": "Reading Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "用于步骤表单和成本明细的稳定玻璃阅读层。",
+      "html": "<section class=\"ds-card\"><strong>② 中转站</strong><p>填写倍率与缓存命中率即可。</p></section>",
+      "css": ".ds-card{padding:20px 22px;border:1px solid rgba(85,105,132,.18);border-radius:16px;background:rgba(249,251,254,.72);color:#0b1728;font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;box-shadow:0 12px 30px rgba(34,53,78,.08),inset 0 1px 0 rgba(255,255,255,.72);backdrop-filter:blur(18px) saturate(1.5)}.ds-card strong{font-size:18px}.ds-card p{margin:8px 0 0;color:#60728a}"
+    },
+    {
+      "name": "Mode Navigation",
+      "kind": "nav",
+      "description": "在同一功能玻璃中切换小白、简易与高级模式。",
+      "html": "<nav class=\"ds-nav\"><button>小白模式</button><button class=\"is-active\">简易模式</button><button>高级模式</button></nav>",
+      "css": ".ds-nav{display:flex;gap:4px;padding:4px;border:1px solid rgba(255,255,255,.78);border-radius:999px;background:rgba(246,250,255,.68);box-shadow:0 18px 48px rgba(28,48,73,.12),inset 0 1px 0 #fff;backdrop-filter:blur(28px) saturate(1.7)}.ds-nav button{min-height:40px;padding:8px 14px;border:0;border-radius:999px;background:transparent;color:#60728a;font:600 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-nav button:hover{color:#055f5b}.ds-nav button:focus-visible{outline:2px solid #087f79;outline-offset:1px}.ds-nav .is-active{background:rgba(255,255,255,.6);color:#087f79;box-shadow:0 7px 20px rgba(33,54,80,.09),inset 0 1px 0 #fff}"
+    },
+    {
+      "name": "Cache Refraction Track",
+      "kind": "custom",
+      "description": "以连续折射轨表达缓存输入比例，不使用漂浮气泡。",
+      "html": "<div class=\"ds-cache\"><span>缓存输入</span><i><b></b></i><strong>60.0%</strong></div>",
+      "css": ".ds-cache{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:9px 11px;border:1px solid rgba(255,255,255,.78);border-radius:12px;background:rgba(255,255,255,.28);color:#32445d;font:600 12px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.ds-cache i{height:7px;overflow:hidden;border-radius:999px;background:rgba(85,105,132,.14);box-shadow:inset 0 1px 2px rgba(30,50,75,.18)}.ds-cache b{display:block;width:60%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#33d4c5,#6d7cff)}.ds-cache strong{color:#0b1728;font-family:'JetBrains Mono',monospace}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Cache Lens / 缓存折射镜",
+    "overview": "Cache Lens 把中转站倍率、缓存命中率和真实成本看成同一台光学仪表中的不同读数。整体界面处在一幅低频率的冰蓝光场中，玻璃不是贴上去的装饰气泡，而是导航、控制和实时结果之间连续的折射层级。高密度表单使用稳定、克制的半透明阅读材质；实时结果、模式切换和主操作使用更清透的功能玻璃。视觉效果永远服务于数值理解。",
+    "keyCharacteristics": [
+      "单幅连续光场，青绿色数据墨水，极少量紫蓝色边缘色散。",
+      "功能玻璃用于导航与操作，稳定玻璃用于表单与说明。",
+      "缓存命中率使用横向折射轨表达，不使用漂浮白色胶囊或气泡。",
+      "明暗主题共用同一层级，支持减少动态和减少透明度。"
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "青绿色是唯一交互强调色；紫蓝只能表现折射，不能与青绿色争夺操作优先级。", "section": "colors" },
+      { "name": "The Data Voice Rule", "body": "等宽字体只为数字关系服务，不用于普通段落或导航。", "section": "typography" },
+      { "name": "The Continuous Field Rule", "body": "深度必须看起来来自同一光场中的折射层级，而不是许多互不相关的发光组件。", "section": "elevation" }
+    ],
+    "dos": [
+      "Do 把玻璃用于层级和操作反馈，并为密集数据提供稳定阅读底。",
+      "Do 使用单幅大尺度光场和连续边缘高光制造液态感。",
+      "Do 在明暗主题、390px 手机宽度、减少动态和高对比偏好下验证每次新增界面。",
+      "Do 保持焦点可见、正文可读、核心结果不依赖透明度单独传达。"
+    ],
+    "donts": [
+      "Don't 使用漂浮白色圆角矩形、随机气泡、药丸碎片或重复小光斑冒充 Liquid Glass。",
+      "Don't 在每张内容卡上叠加同等级强模糊、发光和阴影。",
+      "Don't 用紫色主按钮或常见 AI 紫粉渐变破坏缓存青绿的唯一强调色规则。",
+      "Don't 让折射、动画或装饰遮挡数值、字段标签和安全说明。"
+    ]
+  }
+}

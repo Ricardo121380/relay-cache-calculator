@@ -1,0 +1,121 @@
+:root {
+  color-scheme: light;
+  --color-bg: #eaf0f7;
+  --color-bg-deep: #dce6f1;
+  --color-bg-texture: rgba(33, 55, 82, 0.055);
+  --color-surface: rgba(251, 253, 255, 0.9);
+  --color-surface-soft: #edf3f8;
+  --color-surface-tint: #dcefeb;
+  --color-border: rgba(48, 70, 97, 0.14);
+  --color-border-strong: rgba(48, 70, 97, 0.26);
+  --color-ink: #0f1a2e;
+  --color-ink-soft: #30445e;
+  --color-muted: #52657d;
+
+  --color-accent: #087f78;
+  --color-accent-bright: #0e9189;
+  --color-accent-deep: #05625d;
+  --color-accent-soft: #d9efec;
+  --color-accent-on: #ffffff;
+
+  --glass-heavy: rgba(247, 251, 255, 0.62);
+  --glass-regular: rgba(247, 251, 255, 0.7);
+  --glass-content: rgba(248, 251, 254, 0.88);
+  --glass-content-strong: rgba(252, 254, 255, 0.96);
+  --glass-inset: rgba(232, 239, 247, 0.82);
+  --glass-edge: rgba(255, 255, 255, 0.72);
+  --glass-edge-shade: rgba(47, 69, 96, 0.2);
+  --glass-specular: rgba(255, 255, 255, 0.82);
+  --glass-cyan: rgba(64, 209, 196, 0.16);
+  --glass-violet: rgba(104, 119, 235, 0.13);
+  --glass-heavy-blur: 34px;
+  --glass-heavy-saturate: 1.75;
+  --glass-regular-blur: 26px;
+  --glass-regular-saturate: 1.6;
+
+  /* Compatibility aliases used by the structural stylesheet. */
+  --glass: var(--glass-content);
+  --glass-strong: var(--glass-content-strong);
+  --glass-border: var(--color-border);
+  --glass-blur: var(--glass-regular-blur);
+  --glass-saturate: var(--glass-regular-saturate);
+
+  --series-1: #087f78; --series-1-deep: #05625d; --series-1-soft: #d9efec;
+  --series-2: #5b6ee1; --series-2-deep: #3f4fb9; --series-2-soft: #e7eafd;
+  --series-3: #b66f12; --series-3-deep: #8e5308; --series-3-soft: #fbefd9;
+  --series-4: #b44268; --series-4-deep: #8c2e4e; --series-4-soft: #f8e5ec;
+  --series-5: #0b7893; --series-5-deep: #075b70; --series-5-soft: #dff1f5;
+
+  --color-warning: #9a5b08;
+  --color-warning-bg: #fff4df;
+  --color-error: #ba2d3d;
+  --color-error-bg: #fdebed;
+
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --radius-shell: 28px;
+  --radius-lg: 24px;
+  --radius: 20px;
+  --radius-sm: 14px;
+  --radius-xs: 12px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 1px rgba(28, 47, 70, 0.03), 0 12px 34px rgba(35, 58, 84, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  --shadow-lift: 0 18px 48px rgba(30, 53, 80, 0.14), 0 4px 14px rgba(8, 127, 120, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  --shadow-glass-heavy: 0 22px 60px rgba(29, 51, 78, 0.18), 0 4px 16px rgba(29, 51, 78, 0.09), inset 0 1px 0 var(--glass-specular), inset 0 -1px 0 rgba(45, 69, 96, 0.1);
+  --shadow-glass-regular: 0 16px 44px rgba(29, 51, 78, 0.13), 0 3px 10px rgba(29, 51, 78, 0.07), inset 0 1px 0 var(--glass-specular);
+  --shadow-glass: var(--shadow-glass-regular);
+
+  --motion-fast: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  --motion: 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-spring: 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #0a1422;
+  --color-bg-deep: #07101b;
+  --color-bg-texture: rgba(168, 191, 219, 0.055);
+  --color-surface: rgba(19, 33, 52, 0.94);
+  --color-surface-soft: #14243a;
+  --color-surface-tint: #123431;
+  --color-border: rgba(177, 199, 224, 0.13);
+  --color-border-strong: rgba(177, 199, 224, 0.25);
+  --color-ink: #e8eff8;
+  --color-ink-soft: #c4d1e1;
+  --color-muted: #a7b7ca;
+  --color-accent: #55cfc3;
+  --color-accent-bright: #70ddd2;
+  --color-accent-deep: #40b8ad;
+  --color-accent-soft: #123a37;
+  --color-accent-on: #061513;
+
+  --glass-heavy: rgba(15, 28, 47, 0.74);
+  --glass-regular: rgba(17, 31, 51, 0.78);
+  --glass-content: rgba(17, 31, 50, 0.9);
+  --glass-content-strong: rgba(22, 39, 61, 0.97);
+  --glass-inset: rgba(10, 23, 39, 0.82);
+  --glass-edge: rgba(216, 231, 248, 0.18);
+  --glass-edge-shade: rgba(1, 7, 14, 0.42);
+  --glass-specular: rgba(214, 231, 250, 0.16);
+  --glass-cyan: rgba(69, 201, 190, 0.12);
+  --glass-violet: rgba(104, 119, 224, 0.11);
+
+  --series-1: #55cfc3; --series-1-deep: #3db5aa; --series-1-soft: #123a37;
+  --series-2: #8b98f2; --series-2-deep: #7180df; --series-2-soft: #202944;
+  --series-3: #e9ad50; --series-3-deep: #d49537; --series-3-soft: #352915;
+  --series-4: #e383a4; --series-4-deep: #cb678a; --series-4-soft: #3a1e2c;
+  --series-5: #61c7dc; --series-5-deep: #42aabd; --series-5-soft: #16333d;
+
+  --color-warning: #f0bb62;
+  --color-warning-bg: #352915;
+  --color-error: #ff8995;
+  --color-error-bg: #3b1d26;
+
+  --shadow-card: 0 1px 1px rgba(0, 0, 0, 0.22), 0 14px 38px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(215, 232, 250, 0.07);
+  --shadow-lift: 0 20px 54px rgba(0, 0, 0, 0.38), 0 4px 14px rgba(39, 150, 141, 0.08), inset 0 1px 0 rgba(215, 232, 250, 0.1);
+  --shadow-glass-heavy: 0 24px 68px rgba(0, 0, 0, 0.46), 0 4px 16px rgba(0, 0, 0, 0.28), inset 0 1px 0 var(--glass-specular), inset 0 -1px 0 rgba(0, 0, 0, 0.32);
+  --shadow-glass-regular: 0 18px 48px rgba(0, 0, 0, 0.36), 0 3px 12px rgba(0, 0, 0, 0.22), inset 0 1px 0 var(--glass-specular);
+}

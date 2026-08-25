@@ -1,0 +1,16 @@
+node_modules
+dist
+.DS_Store
+*.local
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+coverage
+playwright-report
+test-results
+.pnpm-store
+.wrangler
+tmp_*
+.shot*.mjs

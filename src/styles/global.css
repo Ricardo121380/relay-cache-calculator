@@ -1,0 +1,77 @@
+* { box-sizing: border-box; }
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  background: var(--color-bg-deep);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  color: var(--color-ink);
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(ellipse 58% 48% at 4% 2%, rgba(38, 189, 177, 0.2), transparent 70%),
+    radial-gradient(ellipse 52% 44% at 96% 22%, rgba(101, 116, 226, 0.16), transparent 72%),
+    radial-gradient(ellipse 54% 42% at 48% 92%, rgba(94, 194, 206, 0.11), transparent 70%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.34), transparent 42%),
+    radial-gradient(var(--color-bg-texture) 0.8px, transparent 0.8px);
+  background-size: auto, auto, auto, auto, 30px 30px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme='dark'] body {
+  background-image:
+    radial-gradient(ellipse 58% 48% at 2% 0%, rgba(43, 174, 163, 0.17), transparent 70%),
+    radial-gradient(ellipse 54% 44% at 98% 20%, rgba(92, 105, 210, 0.14), transparent 72%),
+    radial-gradient(ellipse 52% 42% at 48% 94%, rgba(39, 125, 145, 0.1), transparent 70%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.018), transparent 42%),
+    radial-gradient(var(--color-bg-texture) 0.8px, transparent 0.8px);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(112deg, transparent 18%, rgba(255, 255, 255, 0.1) 42%, transparent 64%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 32%);
+  opacity: 0.62;
+}
+
+:root[data-theme='dark'] body::before { opacity: 0.22; }
+
+#root {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 22px 44px;
+}
+
+.muted { color: var(--color-muted); }
+h1, h2, h3 { text-wrap: balance; }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+button, input, select { font: inherit; }
+::selection { color: var(--color-ink); background: var(--color-accent-soft); }
+
+@media (max-width: 720px) {
+  #root { padding-inline: 12px; padding-bottom: 96px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
