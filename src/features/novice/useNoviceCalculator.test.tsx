@@ -48,7 +48,9 @@ describe('useNoviceCalculator', () => {
     const [logUrl, logInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
     expect(logUrl).toBe('https://relay.example.com/api/log/token')
     expect(logInit.credentials).toBe('omit')
+    expect(logInit.cache).toBe('no-store')
     expect(logInit.redirect).toBe('error')
+    expect(logInit.referrerPolicy).toBe('no-referrer')
     expect(new Headers(logInit.headers).get('authorization')).toBe('Bearer sk-one-time')
     expect(String(init.body)).not.toContain('sk-one-time')
   })
@@ -161,6 +163,32 @@ describe('useNoviceCalculator', () => {
     })
     expect(result.current.inspection?.warnings.join('')).toContain('CORS')
   })
+
+  it('Krill 多线路和多渠道必须分别选择，综合倍率与成本不会重复应用线路倍率', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(success(krillInspection()))))
+    const { result } = renderHook(() => useNoviceCalculator())
+    act(() => result.current.setBaseUrl('https://www.krill-ai.net'))
+    await act(async () => result.current.connect())
+
+    expect(result.current.selectedGroupId).toBe('')
+    expect(result.current.selectedChannelId).toBe('')
+    expect(result.current.result).toBeNull()
+
+    act(() => result.current.selectGroup('krill:gpt-5.6-sol:均衡'))
+    expect(result.current.result).toBeNull()
+    act(() => result.current.selectChannel('channel-a'))
+
+    await waitFor(() => expect(result.current.result).not.toBeNull())
+    expect(result.current.cacheHitRatePercent).toBe('90')
+    expect(result.current.effectiveRatios).toMatchObject({
+      modelRatio: '2.5',
+      groupRatio: '0.15',
+      cacheRatio: '0.1',
+      completionRatio: '6',
+    })
+    expect(result.current.result?.multiplier).toBe('0.375')
+    expect(Number(result.current.result?.mixedCostPerMillionCny)).toBeCloseTo(3.8782, 4)
+  })
 })
 
 function success(data: RelayInspection): RelayInspectSuccess {
@@ -238,5 +266,102 @@ function inspection(
     warnings: [],
     endpointStatus: [{ endpoint: 'pricing', state: 'ok', httpStatus: 200 }],
     inspectedAt: '2026-08-24T00:00:00.000Z',
+  }
+}
+
+function krillInspection(): RelayInspection {
+  return {
+    baseUrl: 'https://www.krill-ai.net',
+    platform: 'krill',
+    stationName: 'Krill AI',
+    version: null,
+    models: [{
+      modelName: 'gpt-5.6-sol',
+      quotaType: 0,
+      pricingKind: 'absolute-usd-per-million',
+      modelRatio: '2.5',
+      completionRatio: '6',
+      cacheRatio: '0.1',
+      createCacheRatio: '1.25',
+      enableGroups: ['krill:gpt-5.6-sol:均衡', 'krill:gpt-5.6-sol:直连'],
+      recentlyUsed: false,
+      sources: ['krill-pricing'],
+    }],
+    groups: [{
+      id: 'krill:gpt-5.6-sol:均衡',
+      name: '均衡',
+      description: '计价线路',
+      ratio: '0.15',
+      kind: 'pricing-route',
+      sources: ['krill-pricing'],
+    }, {
+      id: 'krill:gpt-5.6-sol:直连',
+      name: '直连',
+      description: '计价线路',
+      ratio: '0.2',
+      kind: 'pricing-route',
+      sources: ['krill-pricing'],
+    }],
+    channels: [{
+      id: 'channel-a',
+      modelName: 'gpt-5.6-sol',
+      name: '主渠道',
+      provider: 'OpenAI',
+      status: 'operational',
+      sources: ['krill-channel-status'],
+    }, {
+      id: 'channel-b',
+      modelName: 'gpt-5.6-sol',
+      name: '备用渠道',
+      provider: 'OpenAI',
+      status: 'degraded',
+      sources: ['krill-channel-status'],
+    }],
+    cacheStats: [{
+      modelName: 'gpt-5.6-sol',
+      group: '',
+      channelId: 'channel-a',
+      hitRatePercent: '90',
+      cachedTokens: null,
+      inputTokens: null,
+      logCount: 0,
+      windowStart: null,
+      windowEnd: null,
+      basis: 'station-reported',
+      source: 'krill-channel-status',
+      modelRatio: null,
+      groupRatio: null,
+      completionRatio: null,
+      cacheRatio: null,
+    }, {
+      modelName: 'gpt-5.6-sol',
+      group: '',
+      channelId: 'channel-b',
+      hitRatePercent: '40',
+      cachedTokens: null,
+      inputTokens: null,
+      logCount: 0,
+      windowStart: null,
+      windowEnd: null,
+      basis: 'station-reported',
+      source: 'krill-channel-status',
+      modelRatio: null,
+      groupRatio: null,
+      completionRatio: null,
+      cacheRatio: null,
+    }],
+    capabilities: {
+      models: { level: 'exact', detail: '已读取 1 个模型' },
+      pricing: { level: 'exact', detail: '已读取完整计价' },
+      multiplier: { level: 'exact', detail: '已读取 2 条计价线路' },
+      cacheRate: { level: 'exact', detail: '已读取 2 个渠道缓存率' },
+      status: { level: 'exact', detail: '已读取 2 个渠道状态' },
+    },
+    warnings: [],
+    endpointStatus: [
+      { endpoint: 'model-pricing', state: 'ok', httpStatus: 200 },
+      { endpoint: 'channel-status', state: 'ok', httpStatus: 200 },
+    ],
+    inspectedAt: '2026-08-26T00:00:00.000Z',
   }
 }

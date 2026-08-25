@@ -226,7 +226,7 @@ describe('简易模式（默认入口）', () => {
   it('默认只出现模型、倍率、缓存率，其余字段隐藏；默认 GPT-5.6 Sol + 编程 10:1', () => {
     renderSimple()
     expect((screen.getByLabelText('模型') as HTMLSelectElement).value).toBe('gpt-5-6-sol')
-    expect(screen.getByLabelText('模型倍率')).toBeInTheDocument()
+    expect(screen.getByLabelText('站点倍率（综合）')).toBeInTheDocument()
     expect(screen.getByLabelText('缓存命中率')).toBeInTheDocument()
     expect(screen.queryByLabelText('普通输入单价')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('输出单价')).not.toBeInTheDocument()
@@ -250,7 +250,7 @@ describe('简易模式（默认入口）', () => {
     expect(screen.getByText('站内最终单价').closest('.segmented__pill')).toHaveClass('is-selected')
     // 切回简易：模型→GPT-5.6 Sol，口径→编程 10:1 + 基础价×倍率
     await user.click(screen.getByRole('radio', { name: '简易模式' }))
-    expect(screen.getByLabelText('模型倍率')).toBeInTheDocument()
+    expect(screen.getByLabelText('站点倍率（综合）')).toBeInTheDocument()
     expect(screen.getByText('已内置的预设口径')).toBeInTheDocument()
     // 回到高级验证预设已落地
     await user.click(screen.getByRole('radio', { name: '高级模式' }))
@@ -266,7 +266,7 @@ describe('简易模式（默认入口）', () => {
     await user.click(screen.getByRole('radio', { name: '多站对比' }))
     expect(screen.getByText(/各中转站/)).toBeInTheDocument()
     expect(screen.getByLabelText('中转站 1 名称')).toBeInTheDocument()
-    expect(screen.getByLabelText('中转站 1 倍率')).toBeInTheDocument()
+    expect(screen.getByLabelText('中转站 1 站点倍率（综合）')).toBeInTheDocument()
     expect(screen.getByLabelText('中转站 1 缓存命中率')).toBeInTheDocument()
     expect(screen.getByLabelText('中转站 2 缓存命中率')).toBeInTheDocument()
     expect(screen.getByText(/2 站对比 ·/)).toBeInTheDocument()
@@ -275,9 +275,9 @@ describe('简易模式（默认入口）', () => {
     expect(screen.getAllByText('¥30.1615 元/1M').length).toBeGreaterThan(0)
     // 添加第 3 家
     await user.click(screen.getByRole('button', { name: /添加中转站/ }))
-    expect(screen.getByLabelText('中转站 3 倍率')).toBeInTheDocument()
+    expect(screen.getByLabelText('中转站 3 站点倍率（综合）')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /移除 中转站 3/ }))
-    expect(screen.queryByLabelText('中转站 3 倍率')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('中转站 3 站点倍率（综合）')).not.toBeInTheDocument()
   })
 })
 
@@ -343,8 +343,8 @@ describe('小白模式（独立顶层视图）', () => {
     expect(screen.getByRole('radiogroup', { name: '计算方式' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: '单站计算', checked: true })).toBeInTheDocument()
     await user.type(screen.getByLabelText('中转站 Base URL'), 'https://relay.example.com')
-    await user.type(screen.getByLabelText('中转站 API Key（可选）'), 'sk-test-DO-NOT-PERSIST')
-    await user.click(screen.getByRole('button', { name: '读取倍率与缓存率' }))
+    await user.type(screen.getByLabelText('普通 API Key（可选）'), 'sk-test-DO-NOT-PERSIST')
+    await user.click(screen.getByRole('button', { name: '读取站点数据' }))
 
     expect(screen.getByLabelText('当前计价倍率')).toHaveTextContent('缓存读取倍率 ×0.1')
     expect(screen.getByLabelText('缓存命中率')).toHaveValue('25')
@@ -361,7 +361,7 @@ describe('小白模式（独立顶层视图）', () => {
     expect(screen.getByLabelText('普通输入单价')).toHaveValue('12.34')
 
     await user.click(screen.getByRole('radio', { name: '小白模式' }))
-    expect(screen.getByLabelText('中转站 API Key（可选）')).toHaveValue('')
+    expect(screen.getByLabelText('普通 API Key（可选）')).toHaveValue('')
     expect(localStorage.getItem(STORAGE_KEY)).toBe(storedBefore)
   })
 })

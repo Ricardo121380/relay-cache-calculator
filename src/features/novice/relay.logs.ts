@@ -138,7 +138,7 @@ export function mergeRelayLogs(
     models,
     groups,
     cacheStats,
-    capabilities: buildRelayCapabilities(models, groups, cacheStats),
+    capabilities: buildRelayCapabilities(models, groups, cacheStats, inspection.channels ?? []),
     warnings: uniqueStrings([...inspection.warnings, ...logs.warnings]),
     endpointStatus,
   }

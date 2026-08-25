@@ -25,9 +25,11 @@ const SOURCE_LABELS: Record<RelayDataSource, string> = {
   'recent-logs': '近期调用日志',
   'public-monitor': '站点公开监控',
   manifest: '站点自描述清单',
-  'model-list': 'OpenAI 兼容模型列表',
+  'model-list': '模型列表',
   'sub2api-billing': 'Sub2API Key 计费信息',
   'sub2api-usage': 'Sub2API Key 用量',
+  'krill-pricing': 'Krill AI 公开价格',
+  'krill-channel-status': 'Krill AI 渠道状态',
 }
 
 const ENDPOINT_LABELS: Record<RelayEndpointStatus['endpoint'], string> = {
@@ -42,6 +44,8 @@ const ENDPOINT_LABELS: Record<RelayEndpointStatus['endpoint'], string> = {
   models: '可用模型',
   billing: 'Sub2API 计费倍率',
   usage: 'Key 用量统计',
+  'model-pricing': '模型价格',
+  'channel-status': '渠道状态',
 }
 
 const ENDPOINT_STATE_LABELS: Record<RelayEndpointStatus['state'], string> = {
@@ -83,6 +87,10 @@ export function NoviceMode({ controller }: NoviceModeProps) {
     selectGroup,
     selectedGroup,
     availableGroups,
+    selectedChannelId,
+    selectChannel,
+    selectedChannel,
+    availableChannels,
     selectedCacheStat,
     cacheHitRatePercent,
     setCacheHitRatePercent,
@@ -93,10 +101,8 @@ export function NoviceMode({ controller }: NoviceModeProps) {
     effectiveRatios,
     errors,
     ratioIssue,
-    manualModelRatio,
-    setManualModelRatio,
-    manualGroupRatio,
-    setManualGroupRatio,
+    manualStationRatio,
+    setManualStationRatio,
     manualCompletionRatio,
     setManualCompletionRatio,
     manualCacheRatio,
@@ -130,7 +136,7 @@ export function NoviceMode({ controller }: NoviceModeProps) {
             <NoviceFixedExchangeRate />
           </div>
           <div className="novice-intro-budget__notes">
-            <p>倍率站换算时，<strong>1× = 输入 $2/1M token</strong>；绝对单价站不使用这项基准。</p>
+            <p>支持 New API、Sub2API、One API 及部分自研站点；实际可读取内容取决于目标站开放的接口。</p>
           </div>
         </div>
 
@@ -139,11 +145,6 @@ export function NoviceMode({ controller }: NoviceModeProps) {
           currentIndex={controller.result ? 2 : inspection ? 1 : 0}
           steps={['连接站点', '配置参数', '查看结果']}
         />
-
-        <p className="privacy-boundary">
-          <strong>Base URL</strong> 只发给本站同源 <code>POST /api/relay/inspect</code>，请求体只有 baseUrl。
-          <strong> API Key</strong> 仅由你的浏览器直连目标站，发出后立即清空，不经过本站 Function、不保存、不调用模型。
-        </p>
       </section>
 
       <section className="novice-stations-section" aria-labelledby="novice-connect-title">
@@ -155,14 +156,12 @@ export function NoviceMode({ controller }: NoviceModeProps) {
         </div>
 
         <section className="step-card novice-connector-card">
-          <p className="step-card__desc">
-            支持 New API、Sub2API、One API/OpenAI 兼容站与自研清单；实际可读内容取决于站点开放的接口。
-          </p>
+          <p className="step-card__desc">输入站点地址后，我们会尝试读取该站提供的模型、价格和状态信息。</p>
           <form onSubmit={(event) => {
             event.preventDefault()
             void connect()
           }}>
-            <FieldGroup className="novice-connector-grid" label="中转站连接信息">
+            <FieldGroup className="novice-connector-primary" label="中转站连接信息">
               <div className="field">
                 <label className="field__label" htmlFor="novice-base-url">中转站 Base URL</label>
                 <div className="field__control">
@@ -180,31 +179,53 @@ export function NoviceMode({ controller }: NoviceModeProps) {
                     required
                   />
                 </div>
-                <p className="field__hint">仅支持 HTTPS；Base URL 会发送到本站 Function，用于校验目标并读取固定的公开接口。</p>
+                <p className="field__hint">仅支持 HTTPS 公网地址；本站只会检查该地址公开提供的只读数据。</p>
               </div>
-
-              <ApiKeyField
-                id="novice-api-key"
-                label="中转站 API Key（可选）"
-                value={apiKey}
-                onChange={setApiKey}
-                placeholder="sk-…（仅浏览器直连）"
-                hint="只由浏览器直连该站固定只读接口，不经本站 Function，发出后立即清空。"
-              />
-
               <div className="field novice-connector-action">
-                <span className="field__label">站点数据</span>
+                <span className="field__label" aria-hidden="true">读取</span>
                 <button
                   className="btn btn--primary"
                   type="submit"
                   disabled={requestState === 'loading'}
                 >
-                  {requestState === 'loading' ? '正在读取…' : inspection ? '重新读取' : '读取倍率与缓存率'}
+                  {requestState === 'loading' ? '正在读取…' : inspection ? '重新读取' : '读取站点数据'}
                 </button>
-                <p className="field__hint">先读公开配置；有 Key 时再由浏览器读取你的近期日志。</p>
+                <p className="field__hint">读取公开配置与状态</p>
               </div>
             </FieldGroup>
+
+            <section className="api-key-trust" aria-labelledby="api-key-trust-title">
+              <div className="api-key-trust__copy">
+                <p className="step-label">可选 · 个人缓存数据</p>
+                <h3 id="api-key-trust-title">API Key 只发送到你填写的中转站</h3>
+                <div className="api-key-promises" aria-label="API Key 安全承诺">
+                  <span>不经过本站服务器</span>
+                  <span>不写入浏览器存储</span>
+                  <span>请求后立即清空</span>
+                </div>
+              </div>
+              <ApiKeyField
+                id="novice-api-key"
+                label="普通 API Key（可选）"
+                value={apiKey}
+                onChange={setApiKey}
+                placeholder="sk-…"
+                hint="用于浏览器直连该站的只读接口。"
+              />
+              <InlineNotice tone="warning">
+                仅使用低权限普通 API Key，不要填写管理员密钥、面板令牌或登录 Cookie。
+              </InlineNotice>
+              <details className="security-details">
+                <summary>安全原理</summary>
+                <p>站点地址用于读取公开配置；API Key 仅由当前浏览器发往目标站，不会进入本站请求、网址或浏览器存储。</p>
+              </details>
+            </section>
           </form>
+
+          <aside className="data-disclaimer" aria-label="数据免责声明">
+            <strong>免责声明</strong>
+            <p>数据来源为目标网站接口，仅供估算。本站不对数据的真实性、准确性和时效性负责，请以目标网站说明及实际账单为准。</p>
+          </aside>
         </section>
       </section>
 
@@ -215,7 +236,7 @@ export function NoviceMode({ controller }: NoviceModeProps) {
       {inspection ? (
         <>
           <section className="step-card" aria-labelledby="novice-config-title">
-            <h2 id="novice-config-title" className="step-card__title">② 选择模型与分组</h2>
+            <h2 id="novice-config-title" className="step-card__title">③ 选择模型与计价来源</h2>
             <p className="step-card__desc">
               {inspection.stationName || '已连接站点'}
               {inspection.version ? ` · ${inspection.version}` : ''}
@@ -236,7 +257,7 @@ export function NoviceMode({ controller }: NoviceModeProps) {
             </div>
 
             {inspection.models.length === 0 ? (
-              <InlineNotice tone="warning">没有读到模型倍率。该站点可能未开放公开价格接口。</InlineNotice>
+              <InlineNotice tone="warning">没有读到可计算的模型价格。该站点可能未开放公开价格接口。</InlineNotice>
             ) : (
               <div className="field">
                 <label className="field__label" htmlFor="novice-model-select">模型</label>
@@ -267,13 +288,16 @@ export function NoviceMode({ controller }: NoviceModeProps) {
 
             {availableGroups.length > 0 ? (
               <div className="field">
-                <label className="field__label" htmlFor="novice-group-select">分组</label>
+                <label className="field__label" htmlFor="novice-group-select">
+                  {availableGroups.every((group) => group.kind === 'pricing-route') ? '计价线路' : '分组'}
+                </label>
                 <select
                   id="novice-group-select"
                   className="field__select"
                   value={selectedGroupId}
                   onChange={(event) => selectGroup(event.target.value)}
                 >
+                  {selectedGroupId === '' ? <option value="">请选择计价线路</option> : null}
                   {availableGroups.map((group) => (
                     <option key={group.id} value={group.id}>
                       {group.name || group.id}（×{group.ratio}）
@@ -297,10 +321,37 @@ export function NoviceMode({ controller }: NoviceModeProps) {
               ) : null
             )}
 
+            {availableChannels.length > 0 ? (
+              <div className="field">
+                <label className="field__label" htmlFor="novice-channel-select">状态渠道</label>
+                <select
+                  id="novice-channel-select"
+                  className="field__select"
+                  value={selectedChannelId}
+                  onChange={(event) => selectChannel(event.target.value)}
+                >
+                  {selectedChannelId === '' ? <option value="">请选择状态渠道</option> : null}
+                  {availableChannels.map((channel) => (
+                    <option key={channel.id} value={channel.id}>
+                      {channel.name} · {statusLabel(channel.status)}
+                    </option>
+                  ))}
+                </select>
+                <p className="field__hint">
+                  {selectedChannel
+                    ? `${selectedChannel.provider || '站点渠道'} · ${statusLabel(selectedChannel.status)}`
+                    : '同一模型的多个渠道分别展示，不会自动平均缓存率。'}
+                </p>
+              </div>
+            ) : null}
+
+            {availableGroups.some((group) => group.kind === 'pricing-route') && availableChannels.length > 0 ? (
+              <p className="selector-separation">计价线路决定价格，状态渠道提供运行状态和缓存率；二者由站点分别提供，不假设自动对应。</p>
+            ) : null}
+
             {selectedModel ? (
               <div className="price-chips" aria-label="当前计价倍率">
-                <span className="price-chip">模型倍率 <b>×{effectiveRatios.modelRatio ?? '—'}</b></span>
-                <span className="price-chip">分组倍率 <b>×{effectiveRatios.groupRatio ?? '—'}</b></span>
+                <span className="price-chip">站点倍率（综合） <b>×{combinedRatio(effectiveRatios.modelRatio, effectiveRatios.groupRatio)}</b></span>
                 <span className="price-chip">缓存读取倍率 <b>×{effectiveRatios.cacheRatio ?? '—'}</b></span>
                 <span className="price-chip">输出倍率 <b>×{effectiveRatios.completionRatio ?? '—'}</b></span>
               </div>
@@ -321,23 +372,14 @@ export function NoviceMode({ controller }: NoviceModeProps) {
                   <svg className="manual-details__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
                 </summary>
                 <div className="manual-details__body">
-                  <p className="field__hint">该平台没有把所有计价参数暴露给普通 Key，只需补充下面缺失项。</p>
+                  <p className="field__hint">该平台没有公开全部计价参数，只需补充下面缺失项。</p>
                   <FieldGroup split className="ratio-grid" label="手动补充计价参数">
-                  {(selectedCacheStat?.modelRatio ?? null) === null && selectedModel.modelRatio === null ? (
+                  {(!effectiveRatios.modelRatio || !effectiveRatios.groupRatio) ? (
                     <NumberField
-                      id="novice-manual-model-ratio"
-                      label="模型倍率"
-                      value={manualModelRatio}
-                      onChange={setManualModelRatio}
-                      suffix="×"
-                    />
-                  ) : null}
-                  {(selectedCacheStat?.groupRatio ?? null) === null && !selectedGroup ? (
-                    <NumberField
-                      id="novice-manual-group-ratio"
-                      label="分组倍率"
-                      value={manualGroupRatio}
-                      onChange={setManualGroupRatio}
+                      id="novice-manual-station-ratio"
+                      label="站点倍率（综合）"
+                      value={manualStationRatio}
+                      onChange={setManualStationRatio}
                       suffix="×"
                     />
                   ) : null}
@@ -366,9 +408,9 @@ export function NoviceMode({ controller }: NoviceModeProps) {
           </section>
 
           <section className="step-card" aria-labelledby="novice-cache-title">
-            <h2 id="novice-cache-title" className="step-card__title">③ 确认缓存命中率</h2>
+            <h2 id="novice-cache-title" className="step-card__title">④ 确认缓存命中率</h2>
             <p className="step-card__desc">
-              缓存命中率是实际使用统计；上面的“缓存读取倍率”是计价系数，两者含义不同。
+              缓存命中率表示缓存读取 input token 占全部 input token 的比例；缓存读取倍率则是命中部分的计价折扣。
             </p>
 
             <FieldGroup label="缓存使用统计">
@@ -389,14 +431,12 @@ export function NoviceMode({ controller }: NoviceModeProps) {
             ) : null}
             {cacheRateMode === 'missing' ? (
               <InlineNotice tone="info">
-                当前模型/分组没有可用的缓存统计，请根据站点监控页手动填写。计算仍会使用自动读取的静态缓存计价倍率。
+                当前模型、线路或渠道没有可用缓存统计，请根据站点监控页手动填写。
               </InlineNotice>
             ) : null}
 
             <p className="field__hint">
-              {selectedModel?.pricingKind === 'absolute-usd-per-million'
-                ? '该站直接提供美元单价，页面按上方固定汇率换算；统一按输入:输出 = 10:1，缓存只影响输入 token。'
-                : '计算基准：站点返回的是倍率而不是直接单价；按 New API / One API 常用口径，1× 对应输入 $2/1M token。例如模型倍率 0.2× 时，倍率调整后的输入价为 $0.4/1M。结果按上方固定汇率换算；输入:输出 = 10:1，缓存只影响输入 token。'}
+              固定按 1 USD = ¥7.20、输入:输出 = 10:1 估算。缓存折扣仅作用于输入 token；输出 token 仍按正常价格计算。
             </p>
           </section>
 
@@ -405,6 +445,7 @@ export function NoviceMode({ controller }: NoviceModeProps) {
             <div className="formula__body">
               <div>读取时间：{formatDateTime(inspection.inspectedAt)}</div>
               <div>目标地址：{inspection.baseUrl}</div>
+              {inspection.platform === 'krill' ? <div>数据范围：最近 24 小时</div> : null}
               {inspection.endpointStatus.map((endpoint) => (
                 <div key={endpoint.endpoint}>
                   {ENDPOINT_LABELS[endpoint.endpoint]}：{ENDPOINT_STATE_LABELS[endpoint.state]}
@@ -448,10 +489,23 @@ function sourceLabels(sources: RelayDataSource[]): string {
 function platformLabel(platform: RelayPlatform): string {
   if (platform === 'new-api') return 'New API'
   if (platform === 'sub2api') return 'Sub2API'
-  if (platform === 'one-api-compatible') return 'One API / OpenAI 兼容'
-  if (platform === 'manifest') return '自研清单'
+  if (platform === 'one-api-compatible') return 'One API'
+  if (platform === 'manifest') return '部分自研站点'
+  if (platform === 'krill') return 'Krill AI'
   if (platform === 'compatible') return '兼容接口'
   return '未知面板'
+}
+
+function statusLabel(status: 'operational' | 'degraded' | 'outage' | 'unknown'): string {
+  if (status === 'operational') return '正常'
+  if (status === 'degraded') return '波动'
+  if (status === 'outage') return '故障'
+  return '未知'
+}
+
+function combinedRatio(modelRatio: string | null, groupRatio: string | null): string {
+  if (!modelRatio || !groupRatio) return '—'
+  return d(modelRatio).mul(groupRatio).toString()
 }
 
 function cacheRateHint(
@@ -461,7 +515,11 @@ function cacheRateHint(
   if (mode === 'manual') return '手动填写；不会改动站点返回的静态缓存计价倍率。'
   if (!stat) return '没有自动统计值，请手动填写站点监控页显示的缓存命中率。'
 
-  const source = stat.source === 'recent-logs' ? '近期调用日志' : '站点公开监控'
+  const source = stat.source === 'recent-logs'
+    ? '近期调用日志'
+    : stat.source === 'krill-channel-status'
+      ? 'Krill AI 渠道状态'
+      : '站点公开监控'
   const basis = stat.basis === 'protocol-aware-input-tokens'
     ? '按协议口径折算为输入 token 命中率'
     : '采用站点公布口径'

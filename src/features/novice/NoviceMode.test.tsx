@@ -23,16 +23,16 @@ describe('NoviceMode', () => {
     render(<Harness />)
 
     await user.type(screen.getByLabelText('中转站 Base URL'), 'https://relay.example.com')
-    await user.type(screen.getByLabelText('中转站 API Key（可选）'), 'sk-secret')
-    await user.click(screen.getByRole('button', { name: '读取倍率与缓存率' }))
+    await user.type(screen.getByLabelText('普通 API Key（可选）'), 'sk-secret')
+    await user.click(screen.getByRole('button', { name: '读取站点数据' }))
 
-    expect((screen.getByLabelText('中转站 API Key（可选）') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('普通 API Key（可选）') as HTMLInputElement).value).toBe('')
     expect(setItem).not.toHaveBeenCalled()
-    expect(screen.getByText(/缓存命中率是实际使用统计/)).toBeInTheDocument()
+    expect(screen.getByText(/缓存读取 input token 占全部 input token/)).toBeInTheDocument()
     expect(screen.getByLabelText('当前计价倍率')).toHaveTextContent('缓存读取倍率 ×0.2')
     expect(screen.queryByLabelText('美元兑人民币汇率')).not.toBeInTheDocument()
     expect(screen.getByLabelText('小白模式固定换算汇率')).toHaveTextContent('1 USD = ¥7.20')
-    expect(screen.getByText(/1× 对应输入 \$2\/1M token/)).toBeInTheDocument()
+    expect(screen.getByText(/固定按 1 USD = ¥7.20/)).toBeInTheDocument()
     expect(screen.getByText(/自动读取：近期调用日志/)).toHaveTextContent('12 条样本')
     expect(screen.getByText(/自动读取：近期调用日志/)).toHaveTextContent('08/20')
 
@@ -57,8 +57,8 @@ describe('NoviceMode', () => {
     render(<Harness />)
 
     await user.type(screen.getByLabelText('中转站 Base URL'), 'https://relay.example.com')
-    await user.click(screen.getByRole('button', { name: '读取倍率与缓存率' }))
-    expect(screen.getByText(/当前模型\/分组没有可用的缓存统计/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '读取站点数据' }))
+    expect(screen.getByText(/当前模型、线路或渠道没有可用缓存统计/)).toBeInTheDocument()
 
     const cacheRate = screen.getByLabelText('缓存命中率') as HTMLInputElement
     await user.type(cacheRate, '35')

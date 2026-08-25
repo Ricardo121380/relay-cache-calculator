@@ -6,11 +6,13 @@ import type {
   RelayInspectFailure,
   RelayInspection,
   RelayModel,
+  RelayStatusChannel,
 } from '../../src/features/novice/relay.types'
 import { buildRelayCapabilities } from '../../src/features/novice/relay.capabilities'
 
 const MAX_REQUEST_BYTES = 8 * 1024
 const MAX_RESPONSE_BYTES = 512 * 1024
+const KRILL_STATUS_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 const UPSTREAM_TIMEOUT_MS = 4_000
 const MAX_MODELS = 2_000
 const MAX_GROUPS = 100
@@ -57,6 +59,7 @@ interface MutableGroup {
   name: string
   description: string
   ratio: string
+  kind: RelayGroup['kind']
   sources: Set<RelayDataSource>
 }
 
@@ -123,14 +126,19 @@ export function normalizeBaseUrl(raw: string): URL {
     throw new RelayInspectionError('UNSAFE_TARGET', '只允许 HTTPS 默认端口 443')
   }
 
-  const path = url.pathname.replace(/\/+$/, '') || '/'
-  if (path !== '/' && path !== '/v1') {
-    throw new RelayInspectionError('INVALID_REQUEST', 'Base URL 只需填写站点域名，可选保留 /v1')
-  }
-
   const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
   if (!hostname || hostname.length > 253 || !hostname.includes('.') || isIpLiteral(hostname) || isBlockedHostname(hostname)) {
     throw new RelayInspectionError('UNSAFE_TARGET', '该地址不是可访问的公网域名')
+  }
+  const path = url.pathname.replace(/\/+$/, '') || '/'
+  if (isKrillHostname(hostname)) {
+    if (!['/', '/v1', '/status', '/app/status'].includes(path)) {
+      throw new RelayInspectionError('INVALID_REQUEST', 'Krill 地址只需填写站点域名或状态页地址')
+    }
+    return new URL('https://www.krill-ai.net')
+  }
+  if (path !== '/' && path !== '/v1') {
+    throw new RelayInspectionError('INVALID_REQUEST', 'Base URL 只需填写站点域名，可选保留 /v1')
   }
   return new URL(`https://${hostname}`)
 }
@@ -172,6 +180,10 @@ export async function inspectRelay(
   const totalSignal = externalSignal ? AbortSignal.any([externalSignal, deadline]) : deadline
   await assertPublicHostname(base, fetcher, totalSignal)
 
+  if (isKrillHostname(base.hostname)) {
+    return inspectKrill(base, fetcher, totalSignal)
+  }
+
   const [status, manifest] = await Promise.all([
     fetchJsonEndpoint(base, '/api/status', 'status', fetcher, totalSignal),
     fetchJsonEndpoint(
@@ -195,6 +207,7 @@ export async function inspectRelay(
         models,
         groups,
         cacheStats: manifestResult.cacheStats,
+        channels: [],
         capabilities: buildRelayCapabilities(models, groups, manifestResult.cacheStats),
         warnings: manifestResult.warnings,
         endpointStatus: [status, manifest].map(toEndpointStatus),
@@ -214,6 +227,7 @@ export async function inspectRelay(
       models,
       groups,
       cacheStats,
+      channels: [],
       capabilities: buildRelayCapabilities(models, groups, cacheStats),
       warnings: [
         '目标站点拒绝 Cloudflare 出口访问公开接口（HTTP 451），已跳过服务端配置读取。如填写普通 API Key，浏览器仍会从你的网络直接尝试读取近期日志。',
@@ -298,6 +312,7 @@ export async function inspectRelay(
     models,
     groups: relayGroups,
     cacheStats,
+    channels: [],
     capabilities: buildRelayCapabilities(models, relayGroups, cacheStats),
     warnings: uniqueStrings(warnings),
     endpointStatus: endpointResults.map(toEndpointStatus),
@@ -350,6 +365,7 @@ async function fetchJsonEndpoint(
   endpoint: EndpointResult['endpoint'],
   fetcher: FetchLike,
   signal?: AbortSignal,
+  responseLimit = MAX_RESPONSE_BYTES,
 ): Promise<EndpointResult> {
   const target = new URL(path, base)
   const headers = new Headers({ Accept: 'application/json' })
@@ -380,7 +396,7 @@ async function fetchJsonEndpoint(
     return { endpoint, status: response.status, state: 'unavailable', data: null, version }
   }
   try {
-    const text = await readLimitedText(response, MAX_RESPONSE_BYTES)
+    const text = await readLimitedText(response, responseLimit)
     const data: unknown = JSON.parse(text)
     return { endpoint, status: response.status, state: 'ok', data, version }
   } catch {
@@ -508,6 +524,7 @@ function parseManifest(payload: unknown): ManifestResult | null {
     cacheStats.push({
       modelName,
       group,
+      channelId: null,
       hitRatePercent: decimalString((cached / input) * 100),
       cachedTokens: decimalString(cached),
       inputTokens: decimalString(input),
@@ -538,6 +555,180 @@ function parseManifest(payload: unknown): ManifestResult | null {
     groups,
     cacheStats,
     warnings,
+  }
+}
+
+async function inspectKrill(
+  base: URL,
+  fetcher: FetchLike,
+  signal: AbortSignal,
+): Promise<RelayInspection> {
+  const [pricingResult, statusResult] = await Promise.all([
+    fetchJsonEndpoint(base, '/api/public/model-pricing', 'model-pricing', fetcher, signal),
+    fetchJsonEndpoint(
+      base,
+      '/api/public/channel-status?hours=24',
+      'channel-status',
+      fetcher,
+      signal,
+      KRILL_STATUS_MAX_RESPONSE_BYTES,
+    ),
+  ])
+  const endpointStatus = [pricingResult, statusResult].map(toEndpointStatus)
+  const modelMap = new Map<string, MutableModel>()
+  const groupMap = new Map<string, MutableGroup>()
+  const channels: RelayStatusChannel[] = []
+  const cacheStats: RelayCacheStat[] = []
+  const warnings: string[] = []
+
+  if (pricingResult.state === 'ok') {
+    parseKrillPricing(pricingResult.data, modelMap, groupMap)
+  } else {
+    warnings.push('Krill 模型价格接口暂时不可用，请稍后重试或手动补充。')
+  }
+  if (statusResult.state === 'ok') {
+    parseKrillChannels(statusResult.data, modelMap, channels, cacheStats)
+  } else {
+    warnings.push('Krill 24 小时渠道状态暂时不可用，缓存率可手动填写。')
+  }
+  if (modelMap.size === 0) {
+    warnings.push('未读取到可按 Token 计费的 Krill 文本模型。')
+  }
+
+  const models = [...modelMap.values()]
+    .slice(0, MAX_MODELS)
+    .map(toRelayModel)
+    .sort((a, b) => a.modelName.localeCompare(b.modelName))
+  const groups = [...groupMap.values()]
+    .slice(0, MAX_GROUPS)
+    .map(toRelayGroup)
+
+  return {
+    baseUrl: base.origin,
+    platform: 'krill',
+    stationName: 'Krill AI',
+    version: null,
+    models,
+    groups,
+    cacheStats,
+    channels,
+    capabilities: buildRelayCapabilities(models, groups, cacheStats, channels),
+    warnings: uniqueStrings(warnings),
+    endpointStatus,
+    inspectedAt: new Date().toISOString(),
+  }
+}
+
+function parseKrillPricing(
+  payload: unknown,
+  models: Map<string, MutableModel>,
+  groups: Map<string, MutableGroup>,
+): void {
+  const root = asRecord(payload)
+  const rows = Array.isArray(root?.data) ? root.data : []
+  for (const raw of rows.slice(0, MAX_MODELS)) {
+    const row = asRecord(raw)
+    const modelName = cleanString(row?.model_name, 200)
+    const inputPrice = positiveNumber(row?.input_token_price)
+    const outputPrice = nonNegativeNumber(row?.output_token_price)
+    const cachedPrice = nonNegativeNumber(row?.cache_read_input_token_price)
+    if (
+      !modelName
+      || row?.enabled !== true
+      || cleanString(row?.model_type, 30) !== 'text'
+      || cleanString(row?.billing_mode, 30) !== 'token'
+      || inputPrice === null
+      || outputPrice === null
+      || cachedPrice === null
+    ) continue
+
+    const model = ensureModel(models, modelName, 0)
+    model.pricingKind = 'absolute-usd-per-million'
+    model.modelRatio = decimalString(inputPrice / 2)
+    model.completionRatio = decimalString(outputPrice / inputPrice)
+    model.cacheRatio = decimalString(cachedPrice / inputPrice)
+    const cacheWritePrice = nonNegativeNumber(row?.cache_creation_token_price)
+    model.createCacheRatio = cacheWritePrice === null ? null : decimalString(cacheWritePrice / inputPrice)
+    model.sources.add('krill-pricing')
+
+    const routes = asRecord(row?.route_multipliers)
+    const entries = routes
+      ? Object.entries(routes).slice(0, MAX_GROUPS)
+      : []
+    if (entries.length === 0) {
+      const id = `krill:${modelName}:default`
+      model.enableGroups.add(id)
+      mergeGroup(groups, id, '默认线路', '该模型未提供额外计价线路', '1', 'krill-pricing', 'pricing-route')
+    } else {
+      for (const [routeName, ratioValue] of entries) {
+        const ratio = numberString(ratioValue)
+        const safeRoute = cleanString(routeName, 100)
+        if (!safeRoute || ratio === null) continue
+        const id = `krill:${modelName}:${safeRoute}`
+        model.enableGroups.add(id)
+        mergeGroup(groups, id, safeRoute, `${modelName} 的计价线路`, ratio, 'krill-pricing', 'pricing-route')
+      }
+    }
+  }
+}
+
+function parseKrillChannels(
+  payload: unknown,
+  models: Map<string, MutableModel>,
+  channels: RelayStatusChannel[],
+  cacheStats: RelayCacheStat[],
+): void {
+  const root = asRecord(payload)
+  const data = asRecord(root?.data)
+  const rawChannels = Array.isArray(data?.channels) ? data.channels : []
+  const rawPerf = Array.isArray(data?.perf) ? data.perf : []
+  const perfByKey = new Map<string, Record<string, unknown>>()
+  for (const raw of rawPerf.slice(0, MAX_MODELS)) {
+    const row = asRecord(raw)
+    const key = cleanString(row?.channel_key, 200)
+    if (key) perfByKey.set(key, row as Record<string, unknown>)
+  }
+
+  for (const raw of rawChannels.slice(0, MAX_MODELS)) {
+    const row = asRecord(raw)
+    const channelKey = cleanString(row?.channel_key, 200)
+    const modelName = cleanString(row?.model_name, 200)
+    if (!channelKey || !modelName || !models.has(modelName)) continue
+    const statusNumber = finiteNumber(row?.current_status)
+    channels.push({
+      id: channelKey,
+      modelName,
+      name: cleanString(row?.channel, 100) || cleanString(row?.display_name, 100) || channelKey,
+      provider: cleanString(row?.provider, 100),
+      status: statusNumber === 1
+        ? 'operational'
+        : statusNumber === 2
+          ? 'degraded'
+          : statusNumber === 0
+            ? 'outage'
+            : 'unknown',
+      sources: ['krill-channel-status'],
+    })
+    const perf = perfByKey.get(channelKey)
+    const cacheRate = nonNegativeNumber(perf?.cache_rate)
+    if (cacheRate === null || cacheRate > 1) continue
+    cacheStats.push({
+      modelName,
+      group: '',
+      channelId: channelKey,
+      hitRatePercent: decimalString(cacheRate * 100),
+      cachedTokens: null,
+      inputTokens: null,
+      logCount: 0,
+      windowStart: null,
+      windowEnd: null,
+      basis: 'station-reported',
+      source: 'krill-channel-status',
+      modelRatio: null,
+      groupRatio: null,
+      completionRatio: null,
+      cacheRatio: null,
+    })
   }
 }
 
@@ -655,9 +846,10 @@ function parsePublicMonitor(
     cacheStats.push({
       modelName,
       group: '',
+      channelId: null,
       hitRatePercent: decimalString(percent),
-      cachedTokens: decimalString(cached ?? 0),
-      inputTokens: decimalString(input ?? 0),
+      cachedTokens: cached === null ? null : decimalString(cached),
+      inputTokens: input === null ? null : decimalString(input),
       logCount: 0,
       windowStart: null,
       windowEnd: null,
@@ -701,6 +893,7 @@ function mergeGroup(
   description: string,
   ratio: string,
   source: RelayDataSource,
+  kind: RelayGroup['kind'] = 'group',
 ): void {
   const existing = groups.get(id)
   if (existing) {
@@ -710,7 +903,7 @@ function mergeGroup(
     existing.sources.add(source)
     return
   }
-  groups.set(id, { id, name: name || id, description, ratio, sources: new Set([source]) })
+  groups.set(id, { id, name: name || id, description, ratio, kind, sources: new Set([source]) })
 }
 
 function toRelayModel(model: MutableModel): RelayModel {
@@ -734,6 +927,7 @@ function toRelayGroup(group: MutableGroup): RelayGroup {
     name: group.name,
     description: group.description,
     ratio: group.ratio,
+    kind: group.kind,
     sources: [...group.sources],
   }
 }
@@ -811,6 +1005,10 @@ function isBlockedHostname(hostname: string): boolean {
   if (blockedNames.has(hostname)) return true
   const blockedSuffixes = ['.localhost', '.local', '.internal', '.home', '.home.arpa', '.lan', '.test', '.invalid', '.example']
   return blockedSuffixes.some((suffix) => hostname.endsWith(suffix))
+}
+
+function isKrillHostname(hostname: string): boolean {
+  return hostname === 'krill-ai.net' || hostname === 'www.krill-ai.net'
 }
 
 function isPublicAddress(address: string): boolean {

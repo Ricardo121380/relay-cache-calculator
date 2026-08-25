@@ -219,7 +219,6 @@ pnpm exec wrangler pages deployment list \
 pnpm test
 pnpm build
 pnpm audit --prod
-pnpm test:e2e
 ```
 
 验收标准：
@@ -227,6 +226,7 @@ pnpm test:e2e
 - 以本次命令实际输出为准，不在文档中硬编码可能过期的测试数量；
 - `pnpm audit --prod` 不应报告未评估的已知生产依赖漏洞；
 - `pnpm build` 必须同时通过前端与 Function 的 TypeScript 检查，并生成 `dist/index.html`。
+- 真实浏览器与视觉验收按第 6 步使用 ego-lite 完成；旧 Playwright 套件保留作维护参考，但不作为当前发布门槛。
 
 任何关键命令退出码非 0，均不得继续生产发布。
 
@@ -265,7 +265,7 @@ pnpm build
 pnpm dev:pages
 ```
 
-访问 Wrangler 输出的本地地址，至少检查：
+使用 ego-lite 访问 Wrangler 输出的本地地址。等待 `document.fonts.ready` 与布局稳定，启用 reduced-motion，使用固定视口分段截图，不使用超长 full-page 截图。至少检查：
 
 1. 页面标题为“中转站缓存成本计算器”；
 2. 小白模式、简易模式和高级模式可以相互切换，简易/高级原有设置不被小白模式覆盖；
@@ -277,6 +277,9 @@ pnpm dev:pages
 8. 390 × 844 手机视口下为单列布局，无横向滚动；
 9. 页面不出现 `NaN`、`Infinity` 或 `undefined`；
 10. 浏览器控制台没有 error。
+11. 三档主题（日间、夜间、跟随系统）均存在且可切换，降低透明度时真正的玻璃表面取消 backdrop blur；
+12. 375 × 812、390 × 844、768、1280 × 700 和 1440 视口完成截图复核；1280 × 700 下结果区没有独立滚动；
+13. 输入 `https://www.krill-ai.net/app/status` 时，无需 API Key 即可读取公开模型价格、计价线路、状态渠道与缓存率；多线路、多渠道分别选择且不平均。
 
 验收完成后停止本地预览进程。
 
@@ -445,6 +448,15 @@ Pages Function 只应访问目标 Base URL 下的公开固定兼容路径：
 /api/rankings
 ```
 
+Krill 仅允许精确域名 `krill-ai.net` 与 `www.krill-ai.net`，规范化后访问：
+
+```text
+/api/public/model-pricing
+/api/public/channel-status?hours=24
+```
+
+Krill 模型价格仍使用 512KB 响应上限；只有渠道状态接口允许 2MB，解析后必须丢弃历史序列，只返回模型、计价线路、当前状态、缓存率和读取时间等精简数据。其他站点不得继承 2MB 上限。
+
 `/api/log/token` 不属于 Function 出站路径；它只能由用户浏览器在 Function 返回规范化安全目标后直连。
 
 发布前后都要确认以下边界没有被放宽：
@@ -555,14 +567,9 @@ test -f dist/_headers
 
 Cloudflare 上传的是 `dist/`。只修改 `public/_headers` 而没有重新构建，不会改变线上响应头。
 
-### 9.5 E2E 提示缺少浏览器
+### 9.5 ego-lite 截图超时或黑屏
 
-```bash
-pnpm exec playwright install chromium
-pnpm test:e2e
-```
-
-项目的 `playwright.config.ts` 也会尝试使用本机已有的兼容 Chromium 缓存。
+确认传给 `captureScreenshot` 的是明确的文件路径字符串；固定视口后分段截图，并在主题切换或滚动后等待布局稳定。不要把配置对象当成路径传入，也不要使用超长 full-page 截图。移动端滚动后的驱动截图若出现空白，应回到页面顶部或扩大当前视口分段捕获，同时用 `snapshotText` 和 `pageInfo` 核对真实 DOM 与滚动状态；不得用 Playwright 截图替代本轮 ego-lite 验收。
 
 ### 9.6 本地 Wrangler 端口被占用
 
@@ -646,12 +653,12 @@ Cloudflare Pages 项目 relay-cache-calculator。
 1. 先检查现有 Cloudflare API/连接器和 Wrangler 认证，不要一开始就要求网页登录。
 2. 不得创建新 Pages 项目，不得修改 DNS、自定义域名、Access 或账户权限。
 3. 部署前记录当前生产部署 ID，作为回滚基线。
-4. 确认 wrangler.jsonc 和 functions/ 与 package.json 同在项目根；依次运行 pnpm install、pnpm test、pnpm build、pnpm audit --prod、pnpm test:e2e。
+4. 确认 wrangler.jsonc 和 functions/ 与 package.json 同在项目根；依次运行 pnpm install、pnpm test、pnpm build、pnpm audit --prod，并按本文使用 ego-lite 完成浏览器验收；旧 Playwright 套件不作为当前发布门槛。
 5. 任一关键测试或构建失败时停止部署，先报告问题；不要带病上线。
 6. 必须从项目根执行 `pnpm exec wrangler pages deploy dist --project-name relay-cache-calculator`，让 Wrangler 同时部署静态资源和 Pages Functions；禁止用 Dashboard 拖拽 Direct Upload。
 7. 上传后等待部署状态明确为 success，再验证生产主域名与 /api/relay/inspect Function 路由。
 8. 比对 dist/index.html 与线上 HTML 的 JS/CSS 资源哈希。
-9. 验证安全响应头、小白模式读取/降级、Function 请求体不含 API Key、Key 仅由浏览器直连且不持久化、CORS 失败时不改走 Function、简易/高级模式不受影响、精确用量、多站对比和 390×844 手机布局。
+9. 验证安全响应头、小白模式读取/降级、Krill 公开接口、多线路/多渠道选择、Function 请求体不含 API Key、Key 仅由浏览器直连且不持久化、CORS 失败时不改走 Function、简易/高级模式不受影响、精确用量、多站对比和 375/390 手机布局。
 10. 不得用真实管理员 Key、面板 JWT 或 Cookie；如验证 /api/log/token，只用低权限临时普通中转 API Key，且不得打印或记录。
 11. 最后按 DEPLOY.md 的“发布完成报告模板”返回完整结果；不要沿用文档中的历史部署 ID，也不要在未查询时声称已上线。
 ```

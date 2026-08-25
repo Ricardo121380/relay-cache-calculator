@@ -32,6 +32,7 @@ export interface EffectiveRelayRatios {
 interface Selection {
   modelName: string
   groupId: string
+  channelId: string
   cacheStat: RelayCacheStat | null
 }
 
@@ -53,11 +54,11 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
   const [requestError, setRequestError] = useState<string | null>(null)
   const [selectedModelName, setSelectedModelName] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [selectedChannelId, setSelectedChannelId] = useState('')
   const [cacheHitRatePercent, setCacheHitRatePercentState] = useState('')
   const [cacheRateMode, setCacheRateMode] = useState<NoviceCacheRateMode>('missing')
   const [localBudgetCny, setBudgetCny] = useState(DEFAULT_BUDGET)
-  const [manualModelRatio, setManualModelRatio] = useState('')
-  const [manualGroupRatio, setManualGroupRatio] = useState('')
+  const [manualStationRatio, setManualStationRatio] = useState('')
   const [manualCompletionRatio, setManualCompletionRatio] = useState('')
   const [manualCacheRatio, setManualCacheRatio] = useState('')
 
@@ -77,6 +78,7 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
   const applySelection = useCallback((selection: Selection) => {
     setSelectedModelName(selection.modelName)
     setSelectedGroupId(selection.groupId)
+    setSelectedChannelId(selection.channelId)
     if (selection.cacheStat) {
       setCacheHitRatePercentState(selection.cacheStat.hitRatePercent)
       setCacheRateMode('automatic')
@@ -116,7 +118,7 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
         setInspection(null)
         setRequestState('error')
         setRequestError(response.message)
-        applySelection({ modelName: '', groupId: '', cacheStat: null })
+        applySelection({ modelName: '', groupId: '', channelId: '', cacheStat: null })
         return
       }
 
@@ -141,8 +143,7 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
       setBaseUrl(nextInspection.baseUrl)
       setRequestState('success')
       setRequestError(null)
-      setManualModelRatio('')
-      setManualGroupRatio('')
+      setManualStationRatio('')
       setManualCompletionRatio('')
       setManualCacheRatio('')
       applySelection(selection)
@@ -151,7 +152,7 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
       setInspection(null)
       setRequestState('error')
       setRequestError(error instanceof Error ? error.message : '连接失败，请稍后重试')
-      applySelection({ modelName: '', groupId: '', cacheStat: null })
+      applySelection({ modelName: '', groupId: '', channelId: '', cacheStat: null })
     } finally {
       oneTimeApiKey = ''
       if (sequence === requestSequence.current) activeRequest.current = null
@@ -173,9 +174,19 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     [availableGroups, selectedGroupId],
   )
 
+  const availableChannels = useMemo(
+    () => (inspection?.channels ?? []).filter((channel) => channel.modelName === selectedModelName),
+    [inspection, selectedModelName],
+  )
+
+  const selectedChannel = useMemo(
+    () => availableChannels.find((channel) => channel.id === selectedChannelId) ?? null,
+    [availableChannels, selectedChannelId],
+  )
+
   const selectedCacheStat = useMemo(
-    () => findCacheStat(inspection, selectedModelName, selectedGroupId),
-    [inspection, selectedGroupId, selectedModelName],
+    () => findCacheStat(inspection, selectedModelName, selectedGroupId, selectedChannelId),
+    [inspection, selectedChannelId, selectedGroupId, selectedModelName],
   )
 
   const selectModel = useCallback((modelName: string) => {
@@ -183,10 +194,13 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     const model = inspection.models.find((item) => item.modelName === modelName) ?? null
     const groups = groupsForModel(inspection, model)
     const groupId = chooseGroupId(inspection, modelName, groups)
+    const channels = channelsForModel(inspection, modelName)
+    const channelId = chooseChannelId(channels)
     applySelection({
       modelName,
       groupId,
-      cacheStat: findCacheStat(inspection, modelName, groupId),
+      channelId,
+      cacheStat: findCacheStat(inspection, modelName, groupId, channelId),
     })
   }, [applySelection, inspection])
 
@@ -195,9 +209,20 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     applySelection({
       modelName: selectedModelName,
       groupId,
-      cacheStat: findCacheStat(inspection, selectedModelName, groupId),
+      channelId: selectedChannelId,
+      cacheStat: findCacheStat(inspection, selectedModelName, groupId, selectedChannelId),
     })
-  }, [applySelection, inspection, selectedModelName])
+  }, [applySelection, inspection, selectedChannelId, selectedModelName])
+
+  const selectChannel = useCallback((channelId: string) => {
+    if (!inspection) return
+    applySelection({
+      modelName: selectedModelName,
+      groupId: selectedGroupId,
+      channelId,
+      cacheStat: findCacheStat(inspection, selectedModelName, selectedGroupId, channelId),
+    })
+  }, [applySelection, inspection, selectedGroupId, selectedModelName])
 
   const setCacheHitRatePercent = useCallback((value: string) => {
     setCacheHitRatePercentState(value)
@@ -216,9 +241,12 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
 
   const effectiveRatios = useMemo<EffectiveRelayRatios>(() => {
     const stat = selectedCacheStat
+    const automaticModelRatio = stat?.modelRatio ?? selectedModel?.modelRatio ?? null
+    const automaticGroupRatio = stat?.groupRatio ?? selectedGroup?.ratio ?? null
+    const useManualCombined = (!automaticModelRatio || !automaticGroupRatio) && Boolean(manualStationRatio)
     return {
-      modelRatio: (stat?.modelRatio ?? selectedModel?.modelRatio ?? manualModelRatio) || null,
-      groupRatio: (stat?.groupRatio ?? selectedGroup?.ratio ?? manualGroupRatio) || null,
+      modelRatio: useManualCombined ? manualStationRatio : automaticModelRatio,
+      groupRatio: useManualCombined ? '1' : automaticGroupRatio,
       completionRatio: (stat?.completionRatio ?? selectedModel?.completionRatio ?? manualCompletionRatio) || null,
       cacheRatio: (stat?.cacheRatio ?? selectedModel?.cacheRatio ?? manualCacheRatio) || null,
       createCacheRatio: selectedModel?.createCacheRatio ?? null,
@@ -232,8 +260,7 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
   }, [
     manualCacheRatio,
     manualCompletionRatio,
-    manualGroupRatio,
-    manualModelRatio,
+    manualStationRatio,
     selectedCacheStat,
     selectedGroup,
     selectedModel,
@@ -247,6 +274,7 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
       || !effectiveRatios.groupRatio
       || !effectiveRatios.completionRatio
       || !effectiveRatios.cacheRatio
+      || (availableChannels.length > 1 && !selectedChannelId)
     ) return null
 
     return {
@@ -282,6 +310,8 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     effectiveRatios,
     exchangeRateToCny,
     selectedModel,
+    availableChannels,
+    selectedChannelId,
   ])
 
   const outcome = useMemo<CalcOutcome | null>(
@@ -302,13 +332,18 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
   const ratioIssue = useMemo(() => {
     if (!selectedModel) return null
     if (selectedModel.quotaType !== 0) return '该模型按次计费，无法按 token 倍率计算'
+    if (availableGroups.length > 1 && availableGroups.every((group) => group.kind === 'pricing-route') && !selectedGroupId) {
+      return '请选择计价线路；不同线路倍率不能自动猜测'
+    }
+    if (availableChannels.length > 1 && !selectedChannelId) {
+      return '请选择状态渠道；同一模型的多个渠道缓存率不会自动平均'
+    }
     const missing: string[] = []
-    if (!effectiveRatios.modelRatio) missing.push('模型倍率')
-    if (!effectiveRatios.groupRatio) missing.push('分组倍率')
+    if (!effectiveRatios.modelRatio || !effectiveRatios.groupRatio) missing.push('站点倍率（综合）')
     if (!effectiveRatios.completionRatio) missing.push('输出倍率')
     if (!effectiveRatios.cacheRatio) missing.push('缓存读取倍率')
     return missing.length > 0 ? `缺少${missing.join('、')}，本站暂时无法自动计算` : null
-  }, [effectiveRatios, selectedModel])
+  }, [availableChannels, availableGroups, effectiveRatios, selectedChannelId, selectedGroupId, selectedModel])
 
   const reset = useCallback(() => {
     requestSequence.current += 1
@@ -321,11 +356,11 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     setRequestError(null)
     setSelectedModelName('')
     setSelectedGroupId('')
+    setSelectedChannelId('')
     setCacheHitRatePercentState('')
     setCacheRateMode('missing')
     setBudgetCny(DEFAULT_BUDGET)
-    setManualModelRatio('')
-    setManualGroupRatio('')
+    setManualStationRatio('')
     setManualCompletionRatio('')
     setManualCacheRatio('')
   }, [clearSecret])
@@ -348,6 +383,10 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     selectGroup,
     selectedGroup,
     availableGroups,
+    selectedChannelId,
+    selectChannel,
+    selectedChannel,
+    availableChannels,
     selectedCacheStat,
     cacheHitRatePercent,
     setCacheHitRatePercent,
@@ -363,10 +402,8 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     errors,
     formulaLines,
     ratioIssue,
-    manualModelRatio,
-    setManualModelRatio,
-    manualGroupRatio,
-    setManualGroupRatio,
+    manualStationRatio,
+    setManualStationRatio,
     manualCompletionRatio,
     setManualCompletionRatio,
     manualCacheRatio,
@@ -383,14 +420,17 @@ function chooseInitialSelection(inspection: RelayInspection): Selection {
     ?? billableModels[0]
     ?? inspection.models[0]
     ?? null
-  if (!model) return { modelName: '', groupId: '', cacheStat: null }
+  if (!model) return { modelName: '', groupId: '', channelId: '', cacheStat: null }
 
   const groups = groupsForModel(inspection, model)
   const groupId = chooseGroupId(inspection, model.modelName, groups)
+  const channels = channelsForModel(inspection, model.modelName)
+  const channelId = chooseChannelId(channels)
   return {
     modelName: model.modelName,
     groupId,
-    cacheStat: findCacheStat(inspection, model.modelName, groupId),
+    channelId,
+    cacheStat: findCacheStat(inspection, model.modelName, groupId, channelId),
   }
 }
 
@@ -403,7 +443,16 @@ function chooseGroupId(
   const statGroup = inspection.cacheStats.find(
     (stat) => stat.modelName === modelName && availableIds.has(stat.group),
   )?.group
+  if (groups.length > 1 && groups.every((group) => group.kind === 'pricing-route')) return ''
   return statGroup ?? groups[0]?.id ?? ''
+}
+
+function channelsForModel(inspection: RelayInspection, modelName: string) {
+  return (inspection.channels ?? []).filter((channel) => channel.modelName === modelName)
+}
+
+function chooseChannelId(channels: NonNullable<RelayInspection['channels']>): string {
+  return channels.length === 1 ? channels[0]?.id ?? '' : ''
 }
 
 function groupsForModel(
@@ -422,8 +471,15 @@ function findCacheStat(
   inspection: RelayInspection | null,
   modelName: string,
   groupId: string,
+  channelId = '',
 ): RelayCacheStat | null {
   if (!inspection || !modelName) return null
+  if (channelId) {
+    return inspection.cacheStats.find(
+      (stat) => stat.modelName === modelName && stat.channelId === channelId,
+    ) ?? null
+  }
+  if ((inspection.channels ?? []).some((channel) => channel.modelName === modelName)) return null
   return inspection.cacheStats.find(
     (stat) => stat.modelName === modelName && stat.group === groupId,
   ) ?? inspection.cacheStats.find(

@@ -43,51 +43,6 @@
 }
 .result-stack { display: flex; flex-direction: column; gap: 14px; }
 
-/* ============ 步骤条 ============ */
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-wrap: wrap;
-}
-.stepper__group { display: inline-flex; align-items: center; gap: 2px; }
-.stepper__line { width: 26px; height: 2px; border-radius: 2px; background: var(--color-border); margin: 0 2px; }
-.stepper__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  min-height: 44px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-muted);
-  cursor: pointer;
-  transition: color var(--motion-fast), background-color var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
-}
-.stepper__item:hover:not(.is-disabled) { color: var(--color-ink); background: var(--color-surface-soft); }
-.stepper__item.is-active {
-  background: #fff; color: var(--color-accent);
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-card);
-  font-weight: 700;
-}
-.stepper__item.is-disabled { opacity: 0.45; cursor: not-allowed; }
-.stepper__num {
-  width: 22px; height: 22px; border-radius: 50%;
-  display: inline-grid; place-items: center;
-  font-family: var(--font-display);
-  font-size: 11.5px; font-weight: 700;
-  background: var(--color-surface-soft); color: var(--color-muted);
-  transition: color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
-}
-.stepper__item.is-done .stepper__num { background: var(--color-accent); color: #fff; }
-.stepper__item.is-active .stepper__num { background: var(--color-accent); color: #fff; box-shadow: 0 0 0 3px var(--color-accent-soft); }
-.stepper__label { white-space: nowrap; }
-
 /* ============ 步骤卡片 ============ */
 .step-card {
   position: relative;
@@ -107,39 +62,6 @@
 }
 .step-nav__hint { font-size: 12px; color: var(--color-muted); }
 .step-nav__btns { display: flex; gap: 10px; }
-
-/* 已完成步骤摘要行 */
-.step-summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 15px 18px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  font: inherit;
-  text-align: left;
-  color: var(--color-ink);
-  cursor: pointer;
-  box-shadow: var(--shadow-card);
-  transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
-}
-.step-summary:hover { border-color: var(--color-accent); box-shadow: var(--shadow-lift); transform: translateY(-1px); }
-.step-summary:active { transform: translateY(0); }
-.step-summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.step-summary__head { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; flex: none; }
-.step-summary__check {
-  width: 20px; height: 20px; border-radius: 50%;
-  background: var(--color-accent); color: #fff;
-  display: inline-grid; place-items: center; font-size: 11px; font-weight: 700;
-}
-.step-summary__detail {
-  font-size: 12.5px; color: var(--color-muted);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
 
 /* ============ 卡片 ============ */
 .card {
@@ -457,8 +379,6 @@
   .novice-compare-shared .ratio-grid > .field { width: 100%; }
   .novice-mode form > .btn { width: 100%; }
   .savings-row { grid-template-columns: 1fr; }
-  .stepper { border-radius: 16px; }
-  .stepper__label { display: none; }
   .step-card { padding: 16px 16px; }
   .step-card::before { left: 16px; right: 16px; }
   .calc__footer { flex-direction: column; gap: 4px; }
@@ -560,8 +480,6 @@
 
 
 /* ============ 精修：步骤进度线 / 入场节奏 / 读数 / 空状态 ============ */
-.stepper__line.is-done { background: var(--color-accent); }
-
 /* 主读数：大数字下方公式快照 */
 .result-hero__meta {
   display: flex;
@@ -605,20 +523,6 @@
 }
 .empty-state__title { font-size: 15px; font-weight: 700; }
 .empty-state__desc { font-size: 12.5px; color: var(--color-muted); max-width: 300px; line-height: 1.6; }
-
-/* 步骤摘要：右侧编辑箭头 */
-.step-summary { position: relative; padding-right: 40px; }
-.step-summary::after {
-  content: '›';
-  position: absolute;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 20px;
-  color: var(--color-border-strong);
-  transition: color var(--motion-fast), transform var(--motion-fast);
-}
-.step-summary:hover::after { color: var(--color-accent); transform: translateY(-50%) translateX(2px); }
 
 /* ============ 精算台：应用大框架面 — now transparent, header is the dock ============ */
 .calc {
@@ -1006,24 +910,6 @@
 .zone-head__title { font-weight: 700; color: var(--color-ink-soft); letter-spacing: 0.1em; }
 .zone-head__hint { font-weight: 400; letter-spacing: 0; }
 
-.flow-ribbon {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  border: 1px dashed var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--glass-strong);
-  backdrop-filter: blur(10px) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(10px) saturate(var(--glass-saturate));
-  font-size: 12.5px;
-  box-shadow: var(--shadow-card);
-}
-.flow-ribbon__step { color: var(--color-ink-soft); font-weight: 600; white-space: nowrap; }
-.flow-ribbon__step--result { color: var(--color-accent); }
-.flow-ribbon__arrow { color: var(--color-border-strong); font-size: 12px; }
-
 
 .ratio-hint { margin-top: -6px; margin-bottom: 12px; }
 .compare-note {
@@ -1045,9 +931,6 @@
   background: var(--color-surface);
 }
 :root[data-theme='dark'] .btn--ghost { background: transparent; }
-:root[data-theme='dark'] .stepper { background: rgba(18, 27, 45, 0.72); }
-:root[data-theme='dark'] .stepper__item:hover { background: var(--color-surface-soft); }
-:root[data-theme='dark'] .stepper__item.is-active { background: var(--color-surface); }
 :root[data-theme='dark'] .brand-mark { background: linear-gradient(150deg, var(--color-accent-soft), var(--color-surface)); }
 :root[data-theme='dark'] .result-hero {
   background:
@@ -1134,12 +1017,6 @@
   .simple-station__fields { grid-template-columns: 1fr; }
 }
 
-/* 深色模式：流程条由白底改深底，保证对比度 */
-:root[data-theme='dark'] .flow-ribbon {
-  background: rgba(18, 27, 45, 0.66);
-  border-color: rgba(148, 163, 184, 0.35);
-}
-:root[data-theme='dark'] .flow-ribbon__step { color: var(--color-ink-soft); }
 :root[data-theme='dark'] .simple-station { background: rgba(18, 27, 45, 0.6); }
 
 /* Focus rings — glass-aware */
@@ -1151,8 +1028,7 @@
 .field__input:focus-visible,
 .field__select:focus-visible,
 .btn:focus-visible,
-.theme-toggle__btn:focus-visible,
-.stepper__item:focus-visible {
+.theme-toggle__btn:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }

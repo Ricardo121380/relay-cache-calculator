@@ -25,7 +25,7 @@ const PRESET_ITEMS = [
   '基础价 × 倍率（倍率即生效）',
   '缓存价取模型预设（如 4 / 0.4 / 20）',
   '命中率按输入 token 计',
-  '编程口径 10:1 · 输入约 91% · 分组倍率 1',
+  '编程口径 10:1 · 输入约 91%',
 ] as const
 
 /** 简易模式：只填模型、倍率、缓存率，其余全部内置预设 */
@@ -102,7 +102,7 @@ export function SimpleMode({
           <div><span>缓存写入</span><strong>${input.cacheWritePricePerMillion || '—'}</strong></div>
         </div>
 
-        <p className="simple-basis-note"><strong>混合输入 : 输出固定 10 : 1。</strong> 有效输入价按普通输入与缓存读取加权，模型倍率 × 分组倍率只应用一次。</p>
+        <p className="simple-basis-note"><strong>混合输入 : 输出固定 10 : 1。</strong> 有效输入价按普通输入与缓存读取加权，站点倍率只应用一次。</p>
       </section>
 
       <section className="simple-stations-section" aria-labelledby="simple-stations-title">
@@ -145,21 +145,12 @@ export function SimpleMode({
                   <FieldGroup className="simple-station__fields" label={`${displayName}倍率与缓存命中率`}>
                     <NumberField
                       id={'simple-multiplier-' + (i + 1)}
-                      label={displayName + ' 倍率'}
+                      label={displayName + ' 站点倍率（综合）'}
                       value={station.modelMultiplier}
                       onChange={(v) => onUpdateStation(i, { modelMultiplier: v })}
                       suffix="×"
                       placeholder="1.0"
                       error={errors['modelMultiplier-' + (i + 1)] ?? errors.modelMultiplier}
-                    />
-                    <NumberField
-                      id={'simple-group-multiplier-' + (i + 1)}
-                      label={displayName + ' 分组倍率'}
-                      value="1"
-                      onChange={() => undefined}
-                      suffix="×"
-                      disabled
-                      hint="简易模式固定 1×"
                     />
                     <PercentField
                       id={'simple-cache-rate-' + (i + 1)}
@@ -181,21 +172,12 @@ export function SimpleMode({
               <FieldGroup className="simple-station__fields" label="中转站倍率与缓存命中率">
                 <NumberField
                   id="simple-model-multiplier"
-                  label="模型倍率"
+                  label="站点倍率（综合）"
                   value={stations[0]?.modelMultiplier ?? '1'}
                   onChange={(v) => onUpdateSingle({ modelMultiplier: v })}
                   suffix="×"
                   placeholder="1.0"
                   error={errors['modelMultiplier-1'] ?? errors.modelMultiplier}
-                />
-                <NumberField
-                  id="simple-group-multiplier"
-                  label="分组倍率"
-                  value="1"
-                  onChange={() => undefined}
-                  suffix="×"
-                  disabled
-                  hint="简易模式固定 1×"
                 />
                 <PercentField
                   id="simple-cache-hit-rate"

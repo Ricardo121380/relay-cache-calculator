@@ -3,12 +3,14 @@ import type {
   RelayCacheStat,
   RelayGroup,
   RelayModel,
+  RelayStatusChannel,
 } from './relay.types'
 
 export function buildRelayCapabilities(
   models: RelayModel[],
   groups: RelayGroup[],
   cacheStats: RelayCacheStat[],
+  channels: RelayStatusChannel[] = [],
 ): RelayCapabilities {
   const priced = models.filter(hasCompletePricing)
   const partialPricing = models.some((model) => [
@@ -40,6 +42,9 @@ export function buildRelayCapabilities(
           detail: exactCache ? '已按缓存 Token 聚合' : '仅有站点公布口径',
         }
       : { level: 'manual', detail: '未读到缓存 Token 统计' },
+    status: channels.length > 0
+      ? { level: 'exact', detail: `已读取 ${channels.length} 个状态渠道` }
+      : { level: 'manual', detail: '未读到渠道状态' },
   }
 }
 

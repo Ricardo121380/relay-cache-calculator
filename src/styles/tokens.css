@@ -19,8 +19,8 @@
   --color-accent-on: #ffffff;
   --color-success: #16a34a;
 
-  --glass-heavy: rgba(247, 251, 255, 0.62);
-  --glass-regular: rgba(247, 251, 255, 0.7);
+  --glass-heavy: rgba(244, 249, 255, 0.46);
+  --glass-regular: rgba(246, 251, 255, 0.55);
   --glass-content: rgba(248, 251, 254, 0.88);
   --glass-content-strong: rgba(252, 254, 255, 0.96);
   --glass-inset: rgba(232, 239, 247, 0.82);
@@ -30,9 +30,9 @@
   --glass-cyan: rgba(36, 187, 205, 0.2);
   --glass-violet: rgba(65, 116, 232, 0.18);
   --glass-heavy-blur: 34px;
-  --glass-heavy-saturate: 1.75;
+  --glass-heavy-saturate: 1.8;
   --glass-regular-blur: 26px;
-  --glass-regular-saturate: 1.6;
+  --glass-regular-saturate: 1.65;
 
   /* Compatibility aliases used by the structural stylesheet. */
   --glass: var(--glass-content);
@@ -93,8 +93,8 @@
   --color-accent-soft: #123a37;
   --color-accent-on: #061513;
 
-  --glass-heavy: rgba(15, 28, 47, 0.74);
-  --glass-regular: rgba(17, 31, 51, 0.78);
+  --glass-heavy: rgba(12, 25, 43, 0.64);
+  --glass-regular: rgba(15, 30, 49, 0.7);
   --glass-content: rgba(17, 31, 50, 0.9);
   --glass-content-strong: rgba(22, 39, 61, 0.97);
   --glass-inset: rgba(10, 23, 39, 0.82);

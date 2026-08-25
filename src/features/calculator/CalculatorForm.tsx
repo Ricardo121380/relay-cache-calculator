@@ -363,15 +363,9 @@ export function CalculatorForm() {
         <div className="calc__inputs">
           <header className="calculator-heading">
             <div>
-              <p className="calculator-heading__eyebrow">真实单价 · 只缓存输入 · 实时换算</p>
               <h2>比较真实 token 成本</h2>
-              <p>
-                {activeComparison
-                  ? '按同一输入输出口径，并排看清各站每 1M 混合 token 花费与同预算可用量。'
-                  : '按当前输入输出口径，看清每 1M 混合 token 花费与同预算可用量。'}
-              </p>
+              <p>输入模型价格、站点倍率和缓存率，查看每 1M token 成本与同预算可用量。</p>
             </div>
-            <span className="prototype-label">真实计算</span>
           </header>
 
           {noviceActive ? (
@@ -489,7 +483,7 @@ export function CalculatorForm() {
       <footer className="calc__footer">
         <span>
           {noviceActive
-            ? 'Base URL 会发送到本站 Function；API Key 只由浏览器直连中转站，不经 Function 且不保存'
+            ? '站点地址用于读取公开数据；API Key 只由浏览器直连中转站，不经过本站服务器且不保存'
             : '简易/高级模式的计算在浏览器本地完成，手工输入不上传'}
         </span>
         <span>内置模型价格为参考价，非官方当前价 · 结果仅供参考</span>
@@ -548,8 +542,8 @@ function NoviceEmptyState({ requestState, eyebrow }: { requestState: NoviceContr
         </div>
       </section>
       <section className="result-boundary-note">
-        <strong>真实读取边界</strong>
-        <p>公开配置由本站 Function 读取；API Key 仅由你的浏览器直连目标站，不会进入本站服务器。</p>
+        <strong>安全读取边界</strong>
+        <p>站点地址用于读取公开数据；API Key 仅由你的浏览器直连目标站，不会进入本站服务器。</p>
       </section>
     </>
   )

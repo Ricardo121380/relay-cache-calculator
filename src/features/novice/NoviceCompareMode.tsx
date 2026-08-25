@@ -3,6 +3,7 @@ import { NumberField } from '../../components/NumberField'
 import { PercentField } from '../../components/PercentField'
 import { FieldGroup } from '../../components/FieldGroup'
 import { ProgressRail } from '../../components/ProgressRail'
+import { d } from '../../utils/decimal'
 import type { RelayCapabilityLevel, RelayPlatform } from './relay.types'
 import { NoviceFixedExchangeRate } from './NoviceFixedExchangeRate'
 import { ApiKeyField } from './ApiKeyField'
@@ -36,7 +37,7 @@ export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
       <section className="step-card novice-compare-shared" aria-labelledby="novice-compare-shared-title">
         <h2 id="novice-compare-shared-title" className="step-card__title">① 设置共同口径</h2>
         <p className="step-card__desc">
-          所有站统一按输入:输出 10:1、缓存仅作用于输入 token 计算；每家站的模型、分组、倍率和缓存率分别读取。
+          所有站统一按输入:输出 10:1、缓存仅作用于输入 token 计算；每家站的模型、站点倍率和缓存率分别读取。
         </p>
         <FieldGroup label="共同预算金额">
           <NumberField
@@ -48,7 +49,7 @@ export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
           />
         </FieldGroup>
         <NoviceFixedExchangeRate />
-        <p className="field__hint novice-compare-basis">倍率站统一以输入 $2/1M token 为 1× 计价基准。</p>
+        <p className="field__hint novice-compare-basis">固定按 1 USD = ¥7.20 换算；倍率站统一以输入 $2/1M token 为 1× 计价基准。</p>
         <ProgressRail
           label="小白多站对比进度"
           currentIndex={controller.ranking
@@ -56,6 +57,23 @@ export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
             : controller.stations.some((station) => Boolean(station.controller.inspection)) ? 1 : 0}
           steps={['共同口径', '逐站读取', '对比结果']}
         />
+        <section className="api-key-trust api-key-trust--shared" aria-labelledby="compare-api-key-trust-title">
+          <div className="api-key-trust__copy">
+            <p className="step-label">API Key 安全边界</p>
+            <h3 id="compare-api-key-trust-title">每个 API Key 只发送到对应中转站</h3>
+            <div className="api-key-promises">
+              <span>不经过本站服务器</span>
+              <span>不写入浏览器存储</span>
+              <span>各站互不复用</span>
+              <span>请求后立即清空</span>
+            </div>
+          </div>
+          <InlineNotice tone="warning">仅使用低权限普通 API Key，不要填写管理员密钥、面板令牌或登录 Cookie。</InlineNotice>
+        </section>
+        <aside className="data-disclaimer" aria-label="数据免责声明">
+          <strong>免责声明</strong>
+          <p>数据来源为目标网站接口，仅供估算。本站不对数据的真实性、准确性和时效性负责，请以目标网站说明及实际账单为准。</p>
+        </aside>
         {controller.modelMismatch ? (
           <InlineNotice tone="warning">
             当前站点选择的模型不一致。仍可比较，但结果同时包含模型价格差；建议各站选择同一模型或对应的等价模型。
@@ -124,8 +142,11 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
     selectedModel,
     selectedGroupId,
     selectGroup,
-    selectedGroup,
     availableGroups,
+    selectedChannelId,
+    selectChannel,
+    selectedChannel,
+    availableChannels,
     selectedCacheStat,
     cacheHitRatePercent,
     setCacheHitRatePercent,
@@ -134,10 +155,8 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
     effectiveRatios,
     errors,
     ratioIssue,
-    manualModelRatio,
-    setManualModelRatio,
-    manualGroupRatio,
-    setManualGroupRatio,
+    manualStationRatio,
+    setManualStationRatio,
     manualCompletionRatio,
     setManualCompletionRatio,
     manualCacheRatio,
@@ -192,14 +211,18 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
             </div>
           </div>
 
+        </FieldGroup>
+
+        <details className="station-api-key-details">
+          <summary>可选：使用该站 API Key</summary>
           <ApiKeyField
             id={id('api-key')}
-            label={`站点 ${suffix} API Key（可选）`}
+            label={`站点 ${suffix} 普通 API Key`}
             value={apiKey}
             onChange={setApiKey}
-            hint="仅由浏览器直连本站固定只读接口，发出后立即清空。"
+            hint="仅发送至此站，读取后立即清空。"
           />
-        </FieldGroup>
+        </details>
 
         <button className="btn btn--primary" type="submit" disabled={requestState === 'loading'}>
           {requestState === 'loading' ? `正在读取站点 ${suffix}…` : inspection ? `重新读取站点 ${suffix}` : `读取站点 ${suffix}`}
@@ -249,8 +272,11 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
 
           {availableGroups.length > 0 ? (
             <div className="field">
-              <label className="field__label" htmlFor={id('group')}>分组</label>
+              <label className="field__label" htmlFor={id('group')}>
+                {availableGroups.every((group) => group.kind === 'pricing-route') ? '计价线路' : '分组'}
+              </label>
               <select id={id('group')} className="field__select" value={selectedGroupId} onChange={(event) => selectGroup(event.target.value)}>
+                {selectedGroupId === '' ? <option value="">请选择计价线路</option> : null}
                 {availableGroups.map((group) => (
                   <option key={group.id} value={group.id}>{group.name || group.id}（×{group.ratio}）</option>
                 ))}
@@ -258,10 +284,22 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
             </div>
           ) : null}
 
+          {availableChannels.length > 0 ? (
+            <div className="field">
+              <label className="field__label" htmlFor={id('channel')}>状态渠道</label>
+              <select id={id('channel')} className="field__select" value={selectedChannelId} onChange={(event) => selectChannel(event.target.value)}>
+                {selectedChannelId === '' ? <option value="">请选择状态渠道</option> : null}
+                {availableChannels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>{channel.name} · {statusLabel(channel.status)}</option>
+                ))}
+              </select>
+              <p className="field__hint">{selectedChannel ? `${selectedChannel.provider || '站点渠道'} · ${statusLabel(selectedChannel.status)}` : '多个渠道不会自动平均缓存率。'}</p>
+            </div>
+          ) : null}
+
           {selectedModel ? (
             <div className="price-chips price-chips--compact" aria-label={`站点 ${suffix} 当前计价倍率`}>
-              <span className="price-chip">模型 <b>×{effectiveRatios.modelRatio ?? '—'}</b></span>
-              <span className="price-chip">分组 <b>×{effectiveRatios.groupRatio ?? '—'}</b></span>
+              <span className="price-chip">站点倍率 <b>×{combinedRatio(effectiveRatios.modelRatio, effectiveRatios.groupRatio)}</b></span>
               <span className="price-chip">缓存 <b>×{effectiveRatios.cacheRatio ?? '—'}</b></span>
               <span className="price-chip">输出 <b>×{effectiveRatios.completionRatio ?? '—'}</b></span>
             </div>
@@ -278,11 +316,8 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
                 <svg className="manual-details__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </summary>
               <div className="manual-details__body ratio-grid" aria-label={`站点 ${suffix} 手动补充计价参数`}>
-                {(selectedCacheStat?.modelRatio ?? null) === null && selectedModel.modelRatio === null ? (
-                  <NumberField id={id('manual-model-ratio')} label="模型倍率" value={manualModelRatio} onChange={setManualModelRatio} suffix="×" />
-                ) : null}
-                {(selectedCacheStat?.groupRatio ?? null) === null && !selectedGroup ? (
-                  <NumberField id={id('manual-group-ratio')} label="分组倍率" value={manualGroupRatio} onChange={setManualGroupRatio} suffix="×" />
+                {(!effectiveRatios.modelRatio || !effectiveRatios.groupRatio) ? (
+                  <NumberField id={id('manual-station-ratio')} label="站点倍率（综合）" value={manualStationRatio} onChange={setManualStationRatio} suffix="×" />
                 ) : null}
                 {(selectedCacheStat?.completionRatio ?? null) === null && selectedModel.completionRatio === null ? (
                   <NumberField id={id('manual-completion-ratio')} label="输出倍率" value={manualCompletionRatio} onChange={setManualCompletionRatio} suffix="×" />
@@ -325,8 +360,21 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
 function platformLabel(platform: RelayPlatform): string {
   if (platform === 'new-api') return 'New API'
   if (platform === 'sub2api') return 'Sub2API'
-  if (platform === 'one-api-compatible') return 'One API / OpenAI 兼容'
-  if (platform === 'manifest') return '自研清单'
+  if (platform === 'one-api-compatible') return 'One API'
+  if (platform === 'manifest') return '部分自研站点'
+  if (platform === 'krill') return 'Krill AI'
   if (platform === 'compatible') return '兼容接口'
   return '未知面板'
+}
+
+function statusLabel(status: 'operational' | 'degraded' | 'outage' | 'unknown'): string {
+  if (status === 'operational') return '正常'
+  if (status === 'degraded') return '波动'
+  if (status === 'outage') return '故障'
+  return '未知'
+}
+
+function combinedRatio(modelRatio: string | null, groupRatio: string | null): string {
+  if (!modelRatio || !groupRatio) return '—'
+  return d(modelRatio).mul(groupRatio).toString()
 }

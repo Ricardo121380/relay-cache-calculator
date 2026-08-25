@@ -35,6 +35,16 @@ export async function inspectRelayCredentials(
   signal?: AbortSignal,
 ): Promise<CredentialReadResult> {
   const key = validateKey(apiKey)
+  if (inspection.platform === 'krill') {
+    return {
+      platform: null,
+      models: [],
+      groups: [],
+      cacheStats: [],
+      warnings: ['Krill 已通过公开接口提供模型、价格、状态和缓存率，无需发送 API Key。'],
+      endpointStatus: [],
+    }
+  }
   if (inspection.platform === 'new-api') {
     const logs = await inspectRelayLogs(inspection.baseUrl, key, signal)
     return {
@@ -149,7 +159,7 @@ export function mergeCredentialData(
     models,
     groups,
     cacheStats,
-    capabilities: buildRelayCapabilities(models, groups, cacheStats),
+    capabilities: buildRelayCapabilities(models, groups, cacheStats, inspection.channels ?? []),
     warnings: uniqueStrings([...inspection.warnings, ...credentials.warnings]),
     endpointStatus,
   }

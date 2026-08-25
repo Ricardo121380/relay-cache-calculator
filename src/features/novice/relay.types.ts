@@ -8,12 +8,15 @@ export type RelayDataSource =
   | 'model-list'
   | 'sub2api-billing'
   | 'sub2api-usage'
+  | 'krill-pricing'
+  | 'krill-channel-status'
 
 export type RelayPlatform =
   | 'new-api'
   | 'sub2api'
   | 'one-api-compatible'
   | 'manifest'
+  | 'krill'
   | 'compatible'
   | 'unknown'
 
@@ -34,6 +37,7 @@ export interface RelayCapabilities {
   pricing: RelayCapability
   multiplier: RelayCapability
   cacheRate: RelayCapability
+  status?: RelayCapability
 }
 
 export interface RelayModel {
@@ -54,6 +58,16 @@ export interface RelayGroup {
   name: string
   description: string
   ratio: string
+  kind?: 'group' | 'pricing-route'
+  sources: RelayDataSource[]
+}
+
+export interface RelayStatusChannel {
+  id: string
+  modelName: string
+  name: string
+  provider: string
+  status: 'operational' | 'degraded' | 'outage' | 'unknown'
   sources: RelayDataSource[]
 }
 
@@ -64,14 +78,15 @@ export type CacheRateBasis =
 export interface RelayCacheStat {
   modelName: string
   group: string
+  channelId?: string | null
   hitRatePercent: string
-  cachedTokens: string
-  inputTokens: string
+  cachedTokens: string | null
+  inputTokens: string | null
   logCount: number
   windowStart: string | null
   windowEnd: string | null
   basis: CacheRateBasis
-  source: 'recent-logs' | 'public-monitor' | 'manifest' | 'sub2api-usage'
+  source: 'recent-logs' | 'public-monitor' | 'manifest' | 'sub2api-usage' | 'krill-channel-status'
   modelRatio: string | null
   groupRatio: string | null
   completionRatio: string | null
@@ -91,6 +106,8 @@ export interface RelayEndpointStatus {
     | 'models'
     | 'billing'
     | 'usage'
+    | 'model-pricing'
+    | 'channel-status'
   state:
     | 'ok'
     | 'unavailable'
@@ -109,6 +126,7 @@ export interface RelayInspection {
   models: RelayModel[]
   groups: RelayGroup[]
   cacheStats: RelayCacheStat[]
+  channels?: RelayStatusChannel[]
   capabilities: RelayCapabilities
   warnings: string[]
   endpointStatus: RelayEndpointStatus[]

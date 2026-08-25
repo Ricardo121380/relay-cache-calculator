@@ -198,6 +198,7 @@ function hasDataSources(value: unknown): value is RelayInspection['models'][numb
     [
       'pricing', 'groups', 'ratio-config', 'recent-logs', 'public-monitor',
       'manifest', 'model-list', 'sub2api-billing', 'sub2api-usage',
+      'krill-pricing', 'krill-channel-status',
     ].includes(String(item)))
 }
 
@@ -214,7 +215,7 @@ function isRelayInspection(value: unknown): value is RelayInspection {
     || typeof value.stationName !== 'string'
     || !isNullableString(value.version)
     || typeof value.inspectedAt !== 'string'
-    || !['new-api', 'sub2api', 'one-api-compatible', 'manifest', 'compatible', 'unknown'].includes(String(value.platform))
+    || !['new-api', 'sub2api', 'one-api-compatible', 'manifest', 'krill', 'compatible', 'unknown'].includes(String(value.platform))
     || !hasStringArray(value.warnings)
     || !Array.isArray(value.models)
     || !Array.isArray(value.groups)
@@ -247,6 +248,7 @@ function isRelayInspection(value: unknown): value is RelayInspection {
       && typeof group.name === 'string'
       && typeof group.description === 'string'
       && typeof group.ratio === 'string'
+      && (group.kind === undefined || ['group', 'pricing-route'].includes(String(group.kind)))
       && hasDataSources(group.sources)
   })
 
@@ -255,13 +257,14 @@ function isRelayInspection(value: unknown): value is RelayInspection {
     return typeof stat.modelName === 'string'
       && typeof stat.group === 'string'
       && typeof stat.hitRatePercent === 'string'
-      && typeof stat.cachedTokens === 'string'
-      && typeof stat.inputTokens === 'string'
+      && isNullableString(stat.cachedTokens)
+      && isNullableString(stat.inputTokens)
+      && (stat.channelId === undefined || isNullableString(stat.channelId))
       && typeof stat.logCount === 'number'
       && isNullableString(stat.windowStart)
       && isNullableString(stat.windowEnd)
       && ['protocol-aware-input-tokens', 'station-reported'].includes(String(stat.basis))
-      && ['recent-logs', 'public-monitor', 'manifest', 'sub2api-usage'].includes(String(stat.source))
+      && ['recent-logs', 'public-monitor', 'manifest', 'sub2api-usage', 'krill-channel-status'].includes(String(stat.source))
       && isNullableString(stat.modelRatio)
       && isNullableString(stat.groupRatio)
       && isNullableString(stat.completionRatio)
@@ -272,13 +275,23 @@ function isRelayInspection(value: unknown): value is RelayInspection {
     if (!isRecord(endpoint)) return false
     return [
       'status', 'manifest', 'pricing', 'ratio', 'ratio-config', 'groups',
-      'rankings', 'logs', 'models', 'billing', 'usage',
+      'rankings', 'logs', 'models', 'billing', 'usage', 'model-pricing', 'channel-status',
     ].includes(String(endpoint.endpoint))
       && ['ok', 'unavailable', 'unauthorized', 'forbidden', 'restricted', 'challenge'].includes(String(endpoint.state))
       && (endpoint.httpStatus === null || typeof endpoint.httpStatus === 'number')
   })
 
-  return modelsValid && groupsValid && cacheStatsValid && endpointStatusValid
+  const channelsValid = value.channels === undefined || (Array.isArray(value.channels) && value.channels.every((channel) => {
+    if (!isRecord(channel)) return false
+    return typeof channel.id === 'string'
+      && typeof channel.modelName === 'string'
+      && typeof channel.name === 'string'
+      && typeof channel.provider === 'string'
+      && ['operational', 'degraded', 'outage', 'unknown'].includes(String(channel.status))
+      && hasDataSources(channel.sources)
+  }))
+
+  return modelsValid && groupsValid && cacheStatsValid && endpointStatusValid && channelsValid
 }
 
 function isRelayInspectResponse(value: unknown): value is RelayInspectResponse {

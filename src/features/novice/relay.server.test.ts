@@ -73,6 +73,80 @@ function fixtureFetch(options: { statusCode?: number; privateAddress?: string; m
   return { fetcher, calls }
 }
 
+function krillFetch(options: { oversizedStatus?: boolean } = {}) {
+  const calls: Array<{
+    url: URL
+    authorization: string | null
+    cookie: string | null
+    redirect: RequestRedirect | undefined
+  }> = []
+  const fetcher = vi.fn<MockFetch>(async (input, init) => {
+    const url = urlOf(input)
+    const headers = new Headers(init?.headers)
+    calls.push({
+      url,
+      authorization: headers.get('authorization'),
+      cookie: headers.get('cookie'),
+      redirect: init?.redirect,
+    })
+    if (url.hostname === 'cloudflare-dns.com') {
+      const type = url.searchParams.get('type')
+      return json({ Answer: type === 'A' ? [{ type: 1, data: '203.0.114.9' }] : [] })
+    }
+    if (url.pathname === '/api/public/model-pricing') {
+      return json({
+        data: [{
+          model_name: 'gpt-5.6-sol',
+          model_type: 'text',
+          billing_mode: 'token',
+          enabled: true,
+          input_token_price: 5,
+          output_token_price: 30,
+          cache_read_input_token_price: 0.5,
+          cache_creation_token_price: 6.25,
+          route_multipliers: { 均衡: 0.15, 直连: 0.2 },
+        }, {
+          model_name: 'image-model',
+          model_type: 'image',
+          billing_mode: 'request',
+          enabled: true,
+          input_token_price: 1,
+          output_token_price: 1,
+          cache_read_input_token_price: 0.1,
+        }],
+      })
+    }
+    if (url.pathname === '/api/public/channel-status') {
+      if (options.oversizedStatus) {
+        return json({ data: { channels: [], perf: [], padding: 'x'.repeat(2 * 1024 * 1024) } })
+      }
+      return json({
+        data: {
+          channels: [{
+            model_name: 'gpt-5.6-sol',
+            channel_key: 'channel-a',
+            channel: '主渠道',
+            display_name: '主渠道',
+            provider: 'OpenAI',
+            current_status: 1,
+            history: Array.from({ length: 4000 }, () => ({ status: 1 })),
+          }, {
+            model_name: 'gpt-5.6-sol',
+            channel_key: 'channel-b',
+            channel: '备用渠道',
+            provider: 'OpenAI',
+            current_status: 2,
+            history: [],
+          }],
+          perf: [{ channel_key: 'channel-a', cache_rate: 0.9 }, { channel_key: 'channel-b', cache_rate: 0.4 }],
+        },
+      })
+    }
+    return json({}, 404)
+  })
+  return { fetcher, calls }
+}
+
 describe('relay inspect server boundary', () => {
   it.each([
     'http://example.com',
@@ -86,6 +160,68 @@ describe('relay inspect server boundary', () => {
     'https://singlelabel',
   ])('拒绝不安全目标 %s', (target) => {
     expect(() => normalizeBaseUrl(target)).toThrow(RelayInspectionError)
+  })
+
+  it.each([
+    'https://www.krill-ai.net',
+    'https://krill-ai.net',
+    'https://www.krill-ai.net/v1',
+    'https://krill-ai.net/status',
+    'https://www.krill-ai.net/app/status',
+  ])('Krill 输入 %s 规范化为固定公开站点', (target) => {
+    expect(normalizeBaseUrl(target).href).toBe('https://www.krill-ai.net/')
+  })
+
+  it('Krill 公开接口映射价格、独立线路和逐渠道缓存率，不返回历史明细', async () => {
+    const { fetcher, calls } = krillFetch()
+    const result = await inspectRelay('https://krill-ai.net/app/status', fetcher)
+
+    expect(result).toMatchObject({
+      baseUrl: 'https://www.krill-ai.net',
+      platform: 'krill',
+      stationName: 'Krill AI',
+    })
+    expect(result.models).toHaveLength(1)
+    expect(result.models[0]).toMatchObject({
+      modelName: 'gpt-5.6-sol',
+      pricingKind: 'absolute-usd-per-million',
+      modelRatio: '2.5',
+      completionRatio: '6',
+      cacheRatio: '0.1',
+      createCacheRatio: '1.25',
+    })
+    expect(result.groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'krill:gpt-5.6-sol:均衡', ratio: '0.15', kind: 'pricing-route' }),
+      expect.objectContaining({ id: 'krill:gpt-5.6-sol:直连', ratio: '0.2', kind: 'pricing-route' }),
+    ]))
+    expect(result.channels).toEqual([
+      expect.objectContaining({ id: 'channel-a', status: 'operational' }),
+      expect.objectContaining({ id: 'channel-b', status: 'degraded' }),
+    ])
+    expect(result.cacheStats).toEqual([
+      expect.objectContaining({ channelId: 'channel-a', hitRatePercent: '90', cachedTokens: null, inputTokens: null }),
+      expect.objectContaining({ channelId: 'channel-b', hitRatePercent: '40', cachedTokens: null, inputTokens: null }),
+    ])
+    expect(JSON.stringify(result)).not.toContain('history')
+
+    const upstream = calls.filter((call) => call.url.hostname === 'www.krill-ai.net')
+    expect(upstream.map((call) => `${call.url.pathname}${call.url.search}`)).toEqual([
+      '/api/public/model-pricing',
+      '/api/public/channel-status?hours=24',
+    ])
+    expect(upstream.every((call) => call.authorization === null && call.cookie === null)).toBe(true)
+    expect(upstream.every((call) => call.redirect === 'manual')).toBe(true)
+  })
+
+  it('Krill 渠道状态专属上限为 2MB，超限仅降级缓存率而不影响价格', async () => {
+    const { fetcher } = krillFetch({ oversizedStatus: true })
+    const result = await inspectRelay('https://www.krill-ai.net', fetcher)
+
+    expect(result.models[0]?.modelRatio).toBe('2.5')
+    expect(result.channels).toEqual([])
+    expect(result.cacheStats).toEqual([])
+    expect(result.warnings.join('')).toContain('24 小时渠道状态暂时不可用')
+    expect(result.endpointStatus).toContainEqual({ endpoint: 'channel-status', state: 'unavailable', httpStatus: 200 })
   })
 
   it('DNS 任一私网结果都会在访问目标站之前阻断', async () => {
