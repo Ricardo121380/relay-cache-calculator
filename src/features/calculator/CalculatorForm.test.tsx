@@ -354,7 +354,7 @@ describe('小白模式（独立顶层视图）', () => {
 
     await user.click(screen.getByRole('radio', { name: '小白模式' }))
     expect(screen.getByRole('radiogroup', { name: '计算方式' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '单站', checked: true })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '单站计算', checked: true })).toBeInTheDocument()
     await user.type(screen.getByLabelText('中转站 Base URL'), 'https://relay.example.com')
     await user.type(screen.getByLabelText('中转站 API Key（可选）'), 'sk-test-DO-NOT-PERSIST')
     await user.click(screen.getByRole('button', { name: '读取倍率与缓存率' }))

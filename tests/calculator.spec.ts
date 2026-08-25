@@ -146,7 +146,7 @@ test('单站与多站对比的输入设置相互独立', async ({ page }) => {
   // 回步骤 1 改对比输入价为 20，再切回单站：单站仍是 12 / 50
   await page.getByRole('button', { name: /编辑① 模型与价格/ }).click()
   await page.fill('#input-price', '20')
-  await page.getByRole('radio', { name: '单站' }).click()
+  await page.getByRole('radio', { name: '单站计算' }).click()
   await expect(page.locator('#input-price')).toHaveValue('12')
   await expect(page.locator('#budget')).toHaveValue('50')
 })

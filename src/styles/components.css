@@ -223,22 +223,6 @@
 .ratio-grid { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 14px; }
 .ratio-grid > .field { flex: 1; min-width: 0; margin-bottom: 0; }
 .ratio-grid__colon { padding-bottom: 10px; font-weight: 700; color: var(--color-muted); }
-.novice-fixed-rate__value {
-  box-sizing: border-box;
-  height: 44px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-soft);
-  color: var(--color-ink);
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
 .novice-mode .ratio-grid,
 .novice-compare-shared .ratio-grid { align-items: flex-start; }
 .novice-compare-basis { margin: -4px 0 14px; }
@@ -703,15 +687,6 @@
 .novice-capability--exact { border-color: color-mix(in srgb, var(--color-accent) 42%, var(--glass-border)); }
 .novice-capability--partial { border-color: color-mix(in srgb, #d97706 42%, var(--glass-border)); }
 .novice-capability--manual { border-style: dashed; }
-.manual-ratio-panel {
-  margin-top: 12px;
-  padding: 13px;
-  border: 1px dashed var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--glass);
-}
-.manual-ratio-panel .ratio-grid { margin: 10px 0 0; }
-
 @media (max-width: 760px) {
   .novice-capabilities { grid-template-columns: 1fr 1fr; }
 }
@@ -821,12 +796,6 @@
 .novice-capabilities--compact .novice-capability > b { font-size: 11px; }
 .price-chips--compact { gap: 6px; margin-bottom: 0; }
 .price-chips--compact .price-chip { padding: 4px 8px; font-size: 11.5px; }
-.novice-station-card .manual-ratio-panel { margin-top: 0; }
-.novice-station-card .manual-ratio-panel .ratio-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-}
 .novice-station-card__details { color: var(--color-muted); font-size: 12px; }
 .novice-station-card__details > summary { cursor: pointer; color: var(--color-ink-soft); }
 .novice-station-card__details .warning-list { margin-top: 10px; }
@@ -935,7 +904,6 @@
   .novice-compare-heading { align-items: stretch; flex-direction: column; }
   .novice-compare-heading .station-add,
   .novice-station-card__form > .btn { width: 100%; }
-  .novice-station-card .manual-ratio-panel .ratio-grid { grid-template-columns: 1fr; }
   .rank-budget, .rank-savings, .rank-breakdown { grid-template-columns: 1fr; }
   .rank-row__tag,
   .rank-row__delta { flex-basis: 104px; width: 104px; }
@@ -1064,33 +1032,6 @@
   font-size: 12px;
   color: var(--color-muted);
   line-height: 1.6;
-}
-
-/* ============ 主题切换（日间/夜间/跟随系统） ============ */
-.theme-toggle {
-  display: inline-flex;
-  padding: 3px;
-  gap: 2px;
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-}
-.theme-toggle__btn {
-  width: 44px; height: 44px;
-  display: grid; place-items: center;
-  border: 0; border-radius: 999px;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-  transition: color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
-}
-.theme-toggle__btn:hover { color: var(--color-ink); }
-.theme-toggle__btn.is-active { background: var(--color-surface); color: var(--color-accent); box-shadow: var(--shadow-card); }
-.theme-toggle__btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-
-@media (max-width: 560px) {
-  .theme-toggle { justify-content: center; }
-  .theme-toggle__btn { width: 44px; height: 44px; }
 }
 
 /* ============ 深色主题对字面色的覆盖 ============ */

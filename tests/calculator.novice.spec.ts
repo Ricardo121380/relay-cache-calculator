@@ -89,7 +89,7 @@ test.beforeEach(async ({ page }) => {
 test('小白完整流程：自动读取倍率、缓存命中率并得到独立结果', async ({ page }) => {
   await page.getByRole('radio', { name: '小白模式', exact: true }).click()
   await expect(page.getByRole('radiogroup', { name: '计算方式' })).toHaveCount(1)
-  await expect(page.getByRole('radio', { name: '单站', exact: true })).toBeChecked()
+  await expect(page.getByRole('radio', { name: '单站计算', exact: true })).toBeChecked()
   await page.getByLabel('中转站 Base URL').fill('https://relay.example.com')
   await page.getByLabel('中转站 API Key（可选）').fill('sk-e2e-DO-NOT-PERSIST')
 
@@ -118,35 +118,32 @@ test('小白完整流程：自动读取倍率、缓存命中率并得到独立�
   expect(leaked).not.toContain('sk-e2e-DO-NOT-PERSIST')
 })
 
-test('小白模式固定汇率，并让同排字段保持同一水平线', async ({ page }) => {
+test('小白模式固定汇率，且预算与手动字段布局稳定', async ({ page }) => {
   await page.getByRole('radio', { name: '小白模式', exact: true }).click()
   await page.getByLabel('中转站 Base URL').fill('https://missing-ratios.example.com')
   await page.getByRole('button', { name: '读取倍率与缓存率' }).click()
 
   await expect(page.locator('#novice-exchange-rate')).toHaveCount(0)
-  await expect(page.getByLabel('小白模式固定换算汇率')).toHaveText('1 USD = ¥7.20')
-  await expect(page.getByText(/1× 对应输入 \$2\/1M token/)).toBeVisible()
+  await expect(page.getByLabel('小白模式固定换算汇率')).toContainText('1 USD = ¥7.20')
+  await expect(page.getByText(/1× = 输入 \$2\/1M token/)).toBeVisible()
 
   const manualTops = await Promise.all([
     page.locator('#novice-manual-completion-ratio').evaluate((node) => node.getBoundingClientRect().top),
     page.locator('#novice-manual-cache-ratio').evaluate((node) => node.getBoundingClientRect().top),
   ])
-  const settingTops = await Promise.all([
-    page.getByLabel('小白模式固定换算汇率').evaluate((node) => node.getBoundingClientRect().top),
-    page.locator('#novice-budget').evaluate((node) => node.getBoundingClientRect().top),
-  ])
+  const budgetBottom = await page.locator('#novice-budget').evaluate((node) => node.getBoundingClientRect().bottom)
+  const rateTop = await page.getByLabel('小白模式固定换算汇率').evaluate((node) => node.getBoundingClientRect().top)
   if ((page.viewportSize()?.width ?? 0) > 560) {
     expect(manualTops[0]).toBeCloseTo(manualTops[1], 0)
-    expect(settingTops[0]).toBeCloseTo(settingTops[1], 0)
   } else {
     expect(manualTops[0]).toBeLessThan(manualTops[1])
-    expect(settingTops[0]).toBeLessThan(settingTops[1])
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false)
   }
+  expect(rateTop).toBeGreaterThan(budgetBottom)
 
   await page.getByRole('radio', { name: '多站对比', exact: true }).click()
   await expect(page.locator('#novice-compare-exchange-rate')).toHaveCount(0)
-  await expect(page.getByLabel('小白模式固定换算汇率')).toHaveText('1 USD = ¥7.20')
+  await expect(page.getByLabel('小白模式固定换算汇率')).toContainText('1 USD = ¥7.20')
 })
 
 test('小白模式与高级/多站状态隔离，读不到日志时可手填', async ({ page }) => {

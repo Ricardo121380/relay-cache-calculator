@@ -2,8 +2,10 @@ import { InlineNotice } from '../../components/InlineNotice'
 import { NumberField } from '../../components/NumberField'
 import { PercentField } from '../../components/PercentField'
 import { FieldGroup } from '../../components/FieldGroup'
+import { ProgressRail } from '../../components/ProgressRail'
 import type { RelayCapabilityLevel, RelayPlatform } from './relay.types'
 import { NoviceFixedExchangeRate } from './NoviceFixedExchangeRate'
+import { ApiKeyField } from './ApiKeyField'
 import {
   MAX_NOVICE_COMPARE_STATIONS,
   MIN_NOVICE_COMPARE_STATIONS,
@@ -36,8 +38,7 @@ export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
         <p className="step-card__desc">
           所有站统一按输入:输出 10:1、缓存仅作用于输入 token 计算；每家站的模型、分组、倍率和缓存率分别读取。
         </p>
-        <FieldGroup split className="ratio-grid" label="共同换算与预算">
-          <NoviceFixedExchangeRate />
+        <FieldGroup label="共同预算金额">
           <NumberField
             id="novice-compare-budget"
             label="共同预算金额"
@@ -46,9 +47,15 @@ export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
             suffix="元"
           />
         </FieldGroup>
-        <p className="field__hint novice-compare-basis">
-          固定按 1 USD = ¥{Number(controller.exchangeRateToCny).toFixed(2)} 换算；倍率站统一以输入 $2/1M token 为 1× 计价基准。
-        </p>
+        <NoviceFixedExchangeRate />
+        <p className="field__hint novice-compare-basis">倍率站统一以输入 $2/1M token 为 1× 计价基准。</p>
+        <ProgressRail
+          label="小白多站对比进度"
+          currentIndex={controller.ranking
+            ? 2
+            : controller.stations.some((station) => Boolean(station.controller.inspection)) ? 1 : 0}
+          steps={['共同口径', '逐站读取', '对比结果']}
+        />
         {controller.modelMismatch ? (
           <InlineNotice tone="warning">
             当前站点选择的模型不一致。仍可比较，但结果同时包含模型价格差；建议各站选择同一模型或对应的等价模型。
@@ -185,22 +192,13 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
             </div>
           </div>
 
-          <div className="field">
-            <label className="field__label" htmlFor={id('api-key')}>站点 {suffix} API Key（可选）</label>
-            <div className="field__control">
-              <input
-                id={id('api-key')}
-                className="field__input"
-                type="password"
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="sk-…"
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </div>
-            <p className="field__hint">仅由浏览器直连本站固定只读接口，发出后立即清空。</p>
-          </div>
+          <ApiKeyField
+            id={id('api-key')}
+            label={`站点 ${suffix} API Key（可选）`}
+            value={apiKey}
+            onChange={setApiKey}
+            hint="仅由浏览器直连本站固定只读接口，发出后立即清空。"
+          />
         </FieldGroup>
 
         <button className="btn btn--primary" type="submit" disabled={requestState === 'loading'}>
@@ -271,8 +269,15 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
 
           {ratioIssue ? <InlineNotice tone="warning">{ratioIssue}</InlineNotice> : null}
           {selectedModel && ratioIssue ? (
-            <div className="manual-ratio-panel" aria-label={`站点 ${suffix} 手动补充计价参数`}>
-              <div className="ratio-grid">
+            <details className="manual-details" open>
+              <summary>
+                <span>
+                  <strong>自动读取缺失时手动补充</strong>
+                  <small>仅补充站点 {suffix} 尚未提供的参数</small>
+                </span>
+                <svg className="manual-details__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+              </summary>
+              <div className="manual-details__body ratio-grid" aria-label={`站点 ${suffix} 手动补充计价参数`}>
                 {(selectedCacheStat?.modelRatio ?? null) === null && selectedModel.modelRatio === null ? (
                   <NumberField id={id('manual-model-ratio')} label="模型倍率" value={manualModelRatio} onChange={setManualModelRatio} suffix="×" />
                 ) : null}
@@ -286,7 +291,7 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
                   <NumberField id={id('manual-cache-ratio')} label="缓存读取倍率" value={manualCacheRatio} onChange={setManualCacheRatio} suffix="×" />
                 ) : null}
               </div>
-            </div>
+            </details>
           ) : null}
 
           <PercentField

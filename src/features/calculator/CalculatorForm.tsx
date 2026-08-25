@@ -29,7 +29,6 @@ import { FormulaDetails } from './FormulaDetails'
 import { RankCompare } from './RankCompare'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { SegmentedControl } from '../../components/SegmentedControl'
-import { ProgressRail } from '../../components/ProgressRail'
 import { InlineNotice } from '../../components/InlineNotice'
 import { useGlassSurface } from '../../hooks/useGlassSurface'
 import { useScrollThreshold } from '../../hooks/useScrollThreshold'
@@ -165,13 +164,6 @@ export function CalculatorForm() {
       : compare
         ? `一套共享基础与使用结构，逐家配置中转站，最多 ${MAX_STATIONS} 家。`
         : '完整配置一个中转站，所有结果随输入实时更新。'
-  const noviceHasInspection = noviceCompareActive
-    ? noviceCompare.stations.some((station) => Boolean(station.controller.inspection))
-    : Boolean(novice.inspection)
-  const noviceProgressIndex = noviceCompareActive
-    ? noviceCompare.ranking ? 2 : noviceHasInspection ? 1 : 0
-    : novice.result ? 2 : noviceHasInspection ? 1 : 0
-
   // ---- 复制结果 ----
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<number | undefined>(undefined)
@@ -284,7 +276,10 @@ export function CalculatorForm() {
             </svg>
           </span>
           <div>
-            <h1 className="calc__title">中转站缓存成本计算器</h1>
+            <h1 className="calc__title">
+              <span>中转站缓存</span>
+              <small>成本计算器</small>
+            </h1>
           </div>
         </div>
         <div className="calc__actions">
@@ -308,53 +303,56 @@ export function CalculatorForm() {
       </header>
 
       <div
-        ref={modeDockGlass.ref}
-        className="mode-dock glass-surface glass-surface--heavy"
-        onPointerMove={modeDockGlass.onPointerMove}
-        onPointerLeave={modeDockGlass.onPointerLeave}
+        className="mode-dock"
+        aria-label="计算模式"
       >
-        <div className="mode-dock__controls">
-          <SegmentedControl
-            id="input-mode"
-            label="输入模式"
-            labelVisibility="sr-only"
-            size="compact"
-            material="heavy"
-            value={inputModeValue}
-            onChange={(value) => {
-              if (value === 'novice') enterNoviceMode()
-              else switchUiMode(value as UiMode)
-            }}
-            options={[
-              { value: 'novice', label: '小白模式' },
-              { value: 'simple', label: '简易模式' },
-              { value: 'advanced', label: '高级模式' },
-            ]}
-          />
-          <SegmentedControl
-            id="view-mode"
-            label="计算方式"
-            labelVisibility="sr-only"
-            size="compact"
-            material="heavy"
-            value={activeComparison ? 'compare' : 'single'}
-            onChange={(value) => {
-              if (noviceActive) setNoviceView(value as 'single' | 'compare')
-              else setMode(value as CalculatorSettings['mode'])
-            }}
-            options={[
-              { value: 'single', label: '单站' },
-              { value: 'compare', label: '多站对比' },
-            ]}
-          />
+        <div
+          ref={modeDockGlass.ref}
+          className="mode-dock__island glass-surface glass-surface--heavy"
+          onPointerMove={modeDockGlass.onPointerMove}
+          onPointerLeave={modeDockGlass.onPointerLeave}
+        >
+          <div className="mode-dock__controls">
+            <SegmentedControl
+              id="input-mode"
+              label="输入模式"
+              labelVisibility="sr-only"
+              size="compact"
+              material="heavy"
+              value={inputModeValue}
+              onChange={(value) => {
+                if (value === 'novice') enterNoviceMode()
+                else switchUiMode(value as UiMode)
+              }}
+              options={[
+                { value: 'novice', label: '小白模式' },
+                { value: 'simple', label: '简易模式' },
+                { value: 'advanced', label: '高级模式' },
+              ]}
+            />
+            <span className="mode-dock__divider" aria-hidden="true" />
+            <SegmentedControl
+              id="view-mode"
+              label="计算方式"
+              labelVisibility="sr-only"
+              size="compact"
+              material="heavy"
+              value={activeComparison ? 'compare' : 'single'}
+              onChange={(value) => {
+                if (noviceActive) setNoviceView(value as 'single' | 'compare')
+                else setMode(value as CalculatorSettings['mode'])
+              }}
+              options={[
+                { value: 'single', label: '单站计算' },
+                { value: 'compare', label: '多站对比' },
+              ]}
+            />
+          </div>
         </div>
-        <div className="mode-dock__context">
-          <span className="mode-dock__eyebrow">{noviceActive ? '小白' : uiSimple ? '简易' : '高级'}</span>
-          <span className="mode-dock__context-copy">
-            <b>{modeContextTitle}</b>
-            <small>{modeContextDescription}</small>
-          </span>
-        </div>
+        <p className="mode-dock__context">
+          {modeContextTitle === '单站计算' ? null : <span className="sr-only">{modeContextTitle}</span>}
+          <span aria-hidden="true">{modeContextDescription}</span>
+        </p>
       </div>
 
       {!noviceActive && anyError && (
@@ -366,6 +364,15 @@ export function CalculatorForm() {
 
       <div className={'calc__grid' + (!activeComparison ? ' calc__grid--single' : '')}>
         <div className="calc__inputs">
+          <header className="calculator-heading">
+            <p className="calculator-heading__eyebrow">真实单价 · 只缓存输入 · 实时换算</p>
+            <h2>比较真实 token 成本</h2>
+            <p>
+              {activeComparison
+                ? '按同一输入输出口径，并排看清各站每 1M 混合 token 花费与同预算可用量。'
+                : '按当前输入输出口径，看清每 1M 混合 token 花费与同预算可用量。'}
+            </p>
+          </header>
           {/* 分区标题：设置 */}
           <div className="zone-head">
             <span className="zone-head__icon" aria-hidden="true">
@@ -379,15 +386,7 @@ export function CalculatorForm() {
             </span>
           </div>
 
-          {noviceActive ? (
-            <ProgressRail
-              label="小白模式设置进度"
-              currentIndex={noviceProgressIndex}
-              steps={noviceCompareActive
-                ? ['共同口径', '逐站读取', '对比结果']
-                : ['连接站点', '配置参数', '查看结果']}
-            />
-          ) : !compare ? (
+          {!noviceActive && !compare ? (
             <div className="flow-ribbon" aria-label="设置流程">
               <span className="flow-ribbon__step">
                 {uiSimple ? '① 选择模型' : '① 模型与价格'}

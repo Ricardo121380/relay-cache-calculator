@@ -39,8 +39,11 @@ const OPTIONS: { value: ThemeMode; label: string; icon: ReactNode }[] = [
 ]
 
 export function ThemeToggle({ value, onChange }: ThemeToggleProps) {
+  const activeIndex = OPTIONS.findIndex((option) => option.value === value)
+
   return (
-    <div className="theme-toggle" role="group" aria-label="主题模式">
+    <div className="theme-toggle" role="group" aria-label="主题模式" data-index={activeIndex}>
+      <span className="theme-toggle__indicator" aria-hidden="true" />
       {OPTIONS.map((o) => (
         <button
           key={o.value}

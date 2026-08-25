@@ -2,6 +2,7 @@ import { InlineNotice } from '../../components/InlineNotice'
 import { NumberField } from '../../components/NumberField'
 import { PercentField } from '../../components/PercentField'
 import { FieldGroup } from '../../components/FieldGroup'
+import { ProgressRail } from '../../components/ProgressRail'
 import { d } from '../../utils/decimal'
 import type {
   RelayCapabilityLevel,
@@ -10,6 +11,7 @@ import type {
   RelayPlatform,
 } from './relay.types'
 import { NoviceFixedExchangeRate } from './NoviceFixedExchangeRate'
+import { ApiKeyField } from './ApiKeyField'
 import type { NoviceController } from './useNoviceCalculator'
 
 export interface NoviceModeProps {
@@ -109,11 +111,34 @@ export function NoviceMode({ controller }: NoviceModeProps) {
           支持 New API、Sub2API、One API/OpenAI 兼容站与自研清单；实际可读内容取决于站点开放的接口。
         </p>
 
+        <div className="novice-intro-budget">
+          <FieldGroup label="小白模式预算">
+            <NumberField
+              id="novice-budget"
+              label="预算金额"
+              value={budgetCny}
+              onChange={setBudgetCny}
+              suffix="元"
+              error={errors.budget}
+            />
+          </FieldGroup>
+          <div className="novice-intro-budget__notes">
+            <NoviceFixedExchangeRate />
+            <p>倍率站换算时，<strong>1× = 输入 $2/1M token</strong>；绝对单价站不使用这项基准。</p>
+          </div>
+        </div>
+
+        <ProgressRail
+          label="小白模式设置进度"
+          currentIndex={controller.result ? 2 : inspection ? 1 : 0}
+          steps={['连接站点', '配置参数', '查看结果']}
+        />
+
         <form onSubmit={(event) => {
           event.preventDefault()
           void connect()
         }}>
-          <FieldGroup label="中转站连接信息">
+          <FieldGroup className="novice-connector-grid" label="中转站连接信息">
             <div className="field">
               <label className="field__label" htmlFor="novice-base-url">中转站 Base URL</label>
               <div className="field__control">
@@ -134,33 +159,27 @@ export function NoviceMode({ controller }: NoviceModeProps) {
               <p className="field__hint">仅支持 HTTPS；Base URL 会发送到本站 Function，用于校验目标并读取固定的公开接口。</p>
             </div>
 
-            <div className="field">
-              <label className="field__label" htmlFor="novice-api-key">中转站 API Key（可选）</label>
-              <div className="field__control">
-                <input
-                  id="novice-api-key"
-                  className="field__input"
-                  type="password"
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
-                  placeholder="sk-…（用于读取你自己的近期调用日志）"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </div>
-              <p className="field__hint">
-                不填也可读公开配置。Key 只会由你的浏览器发往该站固定的只读接口，不经过本站 Cloudflare Function；不请求模型、不保存，发出后立即清空。
-              </p>
+            <ApiKeyField
+              id="novice-api-key"
+              label="中转站 API Key（可选）"
+              value={apiKey}
+              onChange={setApiKey}
+              placeholder="sk-…（仅浏览器直连）"
+              hint="只由浏览器直连该站固定只读接口，不经本站 Function，发出后立即清空。"
+            />
+
+            <div className="field novice-connector-action">
+              <span className="field__label">站点数据</span>
+              <button
+                className="btn btn--primary"
+                type="submit"
+                disabled={requestState === 'loading'}
+              >
+                {requestState === 'loading' ? '正在读取…' : inspection ? '重新读取' : '读取倍率与缓存率'}
+              </button>
+              <p className="field__hint">先读公开配置；有 Key 时再由浏览器读取你的近期日志。</p>
             </div>
           </FieldGroup>
-
-          <button
-            className="btn btn--primary"
-            type="submit"
-            disabled={requestState === 'loading'}
-          >
-            {requestState === 'loading' ? '正在读取…' : inspection ? '重新读取' : '读取倍率与缓存率'}
-          </button>
         </form>
       </section>
 
@@ -268,9 +287,17 @@ export function NoviceMode({ controller }: NoviceModeProps) {
             {ratioIssue ? <InlineNotice tone="warning">{ratioIssue}</InlineNotice> : null}
 
             {selectedModel && ratioIssue ? (
-              <div className="manual-ratio-panel" aria-label="手动补充计价参数">
-                <p className="field__hint">该平台没有把所有计价参数暴露给普通 Key，只需补充下面缺失项。</p>
-                <FieldGroup split className="ratio-grid" label="手动补充计价参数">
+              <details className="manual-details" open>
+                <summary>
+                  <span>
+                    <strong>自动读取缺失时手动补充</strong>
+                    <small>仅显示当前站点没有提供的参数</small>
+                  </span>
+                  <svg className="manual-details__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+                </summary>
+                <div className="manual-details__body">
+                  <p className="field__hint">该平台没有把所有计价参数暴露给普通 Key，只需补充下面缺失项。</p>
+                  <FieldGroup split className="ratio-grid" label="手动补充计价参数">
                   {(selectedCacheStat?.modelRatio ?? null) === null && selectedModel.modelRatio === null ? (
                     <NumberField
                       id="novice-manual-model-ratio"
@@ -307,8 +334,9 @@ export function NoviceMode({ controller }: NoviceModeProps) {
                       suffix="×"
                     />
                   ) : null}
-                </FieldGroup>
-              </div>
+                  </FieldGroup>
+                </div>
+              </details>
             ) : null}
           </section>
 
@@ -339,18 +367,6 @@ export function NoviceMode({ controller }: NoviceModeProps) {
                 当前模型/分组没有可用的缓存统计，请根据站点监控页手动填写。计算仍会使用自动读取的静态缓存计价倍率。
               </InlineNotice>
             ) : null}
-
-            <FieldGroup split className="ratio-grid" label="换算与预算">
-              <NoviceFixedExchangeRate />
-              <NumberField
-                id="novice-budget"
-                label="预算金额"
-                value={budgetCny}
-                onChange={setBudgetCny}
-                suffix="元"
-                error={errors.budget}
-              />
-            </FieldGroup>
 
             <p className="field__hint">
               {selectedModel?.pricingKind === 'absolute-usd-per-million'
