@@ -105,25 +105,31 @@ export function NoviceMode({ controller }: NoviceModeProps) {
 
   return (
     <div className="result-stack novice-mode">
-      <section className="step-card" aria-labelledby="novice-connect-title">
-        <h2 id="novice-connect-title" className="step-card__title">① 连接中转站</h2>
-        <p className="step-card__desc">
-          支持 New API、Sub2API、One API/OpenAI 兼容站与自研清单；实际可读内容取决于站点开放的接口。
-        </p>
-
+      <section className="step-card novice-overview" aria-labelledby="novice-overview-title">
+        <div className="panel-heading">
+          <div>
+            <p className="step-label">01 · 安全读取边界</p>
+            <h2 id="novice-overview-title" className="step-card__title">只连接你指定的站点</h2>
+          </div>
+          <span className="status-label">
+            {requestState === 'loading' ? '正在读取' : inspection ? '已连接' : '等待连接'}
+          </span>
+        </div>
         <div className="novice-intro-budget">
-          <FieldGroup label="小白模式预算">
-            <NumberField
-              id="novice-budget"
-              label="预算金额"
-              value={budgetCny}
-              onChange={setBudgetCny}
-              suffix="元"
-              error={errors.budget}
-            />
-          </FieldGroup>
-          <div className="novice-intro-budget__notes">
+          <div className="novice-intro-budget__field">
+            <FieldGroup label="预算">
+              <NumberField
+                id="novice-budget"
+                label="预算"
+                value={budgetCny}
+                onChange={setBudgetCny}
+                prefix="¥"
+                error={errors.budget}
+              />
+            </FieldGroup>
             <NoviceFixedExchangeRate />
+          </div>
+          <div className="novice-intro-budget__notes">
             <p>倍率站换算时，<strong>1× = 输入 $2/1M token</strong>；绝对单价站不使用这项基准。</p>
           </div>
         </div>
@@ -134,53 +140,72 @@ export function NoviceMode({ controller }: NoviceModeProps) {
           steps={['连接站点', '配置参数', '查看结果']}
         />
 
-        <form onSubmit={(event) => {
-          event.preventDefault()
-          void connect()
-        }}>
-          <FieldGroup className="novice-connector-grid" label="中转站连接信息">
-            <div className="field">
-              <label className="field__label" htmlFor="novice-base-url">中转站 Base URL</label>
-              <div className="field__control">
-                <input
-                  id="novice-base-url"
-                  className="field__input"
-                  type="url"
-                  value={baseUrl}
-                  onChange={(event) => setBaseUrl(event.target.value)}
-                  placeholder="https://api.example.com"
-                  inputMode="url"
-                  spellCheck={false}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  required
-                />
+        <p className="privacy-boundary">
+          <strong>Base URL</strong> 只发给本站同源 <code>POST /api/relay/inspect</code>，请求体只有 baseUrl。
+          <strong> API Key</strong> 仅由你的浏览器直连目标站，发出后立即清空，不经过本站 Function、不保存、不调用模型。
+        </p>
+      </section>
+
+      <section className="novice-stations-section" aria-labelledby="novice-connect-title">
+        <div className="section-row">
+          <div>
+            <p className="step-label">02 · 站点连接</p>
+            <h2 id="novice-connect-title">连接一个中转站</h2>
+          </div>
+        </div>
+
+        <section className="step-card novice-connector-card">
+          <p className="step-card__desc">
+            支持 New API、Sub2API、One API/OpenAI 兼容站与自研清单；实际可读内容取决于站点开放的接口。
+          </p>
+          <form onSubmit={(event) => {
+            event.preventDefault()
+            void connect()
+          }}>
+            <FieldGroup className="novice-connector-grid" label="中转站连接信息">
+              <div className="field">
+                <label className="field__label" htmlFor="novice-base-url">中转站 Base URL</label>
+                <div className="field__control">
+                  <input
+                    id="novice-base-url"
+                    className="field__input"
+                    type="url"
+                    value={baseUrl}
+                    onChange={(event) => setBaseUrl(event.target.value)}
+                    placeholder="https://api.example.com"
+                    inputMode="url"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    required
+                  />
+                </div>
+                <p className="field__hint">仅支持 HTTPS；Base URL 会发送到本站 Function，用于校验目标并读取固定的公开接口。</p>
               </div>
-              <p className="field__hint">仅支持 HTTPS；Base URL 会发送到本站 Function，用于校验目标并读取固定的公开接口。</p>
-            </div>
 
-            <ApiKeyField
-              id="novice-api-key"
-              label="中转站 API Key（可选）"
-              value={apiKey}
-              onChange={setApiKey}
-              placeholder="sk-…（仅浏览器直连）"
-              hint="只由浏览器直连该站固定只读接口，不经本站 Function，发出后立即清空。"
-            />
+              <ApiKeyField
+                id="novice-api-key"
+                label="中转站 API Key（可选）"
+                value={apiKey}
+                onChange={setApiKey}
+                placeholder="sk-…（仅浏览器直连）"
+                hint="只由浏览器直连该站固定只读接口，不经本站 Function，发出后立即清空。"
+              />
 
-            <div className="field novice-connector-action">
-              <span className="field__label">站点数据</span>
-              <button
-                className="btn btn--primary"
-                type="submit"
-                disabled={requestState === 'loading'}
-              >
-                {requestState === 'loading' ? '正在读取…' : inspection ? '重新读取' : '读取倍率与缓存率'}
-              </button>
-              <p className="field__hint">先读公开配置；有 Key 时再由浏览器读取你的近期日志。</p>
-            </div>
-          </FieldGroup>
-        </form>
+              <div className="field novice-connector-action">
+                <span className="field__label">站点数据</span>
+                <button
+                  className="btn btn--primary"
+                  type="submit"
+                  disabled={requestState === 'loading'}
+                >
+                  {requestState === 'loading' ? '正在读取…' : inspection ? '重新读取' : '读取倍率与缓存率'}
+                </button>
+                <p className="field__hint">先读公开配置；有 Key 时再由浏览器读取你的近期日志。</p>
+              </div>
+            </FieldGroup>
+          </form>
+        </section>
       </section>
 
       {requestState === 'loading' ? <NoviceLoadingSkeleton /> : null}

@@ -1,60 +1,43 @@
-# Liquid Glass Design QA
+# OpenDesign Liquid Glass Design QA
 
-## Comparison target
+## Visual source of truth
 
-- Source visual truth: OpenDesign project `relay-cache-apple-liquid-glass-codex-official-v1`.
-- Source captures: `/path/to/local-captures/relay-od-source-390x844.png` and `/path/to/local-captures/relay-od-source-1280x720.png`.
-- Rendered implementation: production build served locally from `dist` and tested with ego-lite.
-- Implementation captures: `/path/to/local-captures/relay-liquid-production-mobile-light-final.png` and `/path/to/local-captures/relay-liquid-production-desktop-novice-light-final.png`.
-- Focused captures: `/path/to/local-captures/relay-liquid-production-eye-hidden-light-final.png`, `/path/to/local-captures/relay-liquid-production-manual-disclosure-light.png`, and `/path/to/local-captures/relay-liquid-production-mobile-dark.png`.
+- OpenDesign project: `relay-cache-apple-liquid-glass-codex-official-v1`.
+- Source captures: `/path/to/local-captures/relay-od-source-1280x720.png`, `/path/to/local-captures/relay-od-simple-1280x720.png`, `/path/to/local-captures/relay-od-advanced-1280x720.png`, `/path/to/local-captures/relay-od-source-390x844.png`.
+- Implementation captures: `/path/to/local-captures/relay-final-novice-light-1280x720.png`, `/path/to/local-captures/relay-final-simple-light-1280x720.png`, `/path/to/local-captures/relay-final-advanced-light-1280x720.png`, `/path/to/local-captures/relay-final-novice-light-390x844.png`, `/path/to/local-captures/relay-final-novice-dark-1280x720.png`.
+- Every visual comparison used the same mode, theme, state, and CSS viewport for the source and implementation.
 
-## Normalization
+## Fidelity result
 
-- Mobile comparison: both images are 390 x 844 pixels, CSS viewport 390 x 844, device scale factor 1.
-- Desktop comparison: both images are 1280 x 720 pixels, CSS viewport 1280 x 720, device scale factor 1.
-- State: light theme, novice mode, single-station calculation, initial/empty result state.
-- No browser chrome or device frame is included.
+- Desktop shell matches the source geometry: header `50,18,1180x68`; control island `354,100,572x62`; two-column workspace begins at `y=211`; novice primary card is `666x370`; result HUD is `482x253` in its empty state.
+- Mobile shell matches the 390 x 844 source composition: header `10,10,370x118.5`; control dock `10,142.5,370x143.5`; page heading starts at `y=308`; persistent bottom HUD is `10,758,370x76`.
+- Novice mode now uses the approved `01 · 安全读取边界` introduction, separate `02 · 站点连接` section, persistent result HUD, and separate read-boundary note.
+- Simple mode uses the approved model / budget / exchange row, four-price snapshot, station section, and source-aligned result HUD.
+- Advanced mode no longer uses the former stacked wizard. It reuses the approved shared price panel, exposes complete price and exact-usage controls in the same workspace, then renders station parameters below it.
+- Heavy Glass hierarchy is preserved on the header, control island, result HUD, and mobile summary; content cards remain non-backdrop content material.
+- Dark mode uses opaque navy inset surfaces for controls and notes; no pale light-mode panel leaks into the dark theme.
 
-## Full-view comparison
+## Browser QA (ego-lite)
 
-The implementation retains the source composition: heavy floating header, one compact two-row mode island, quiet explanatory line, large cost-comparison heading, rounded content material, and a separate results surface. The production screen intentionally contains the real progress rail and complete station-reading form instead of the prototype's explanatory placeholder panel.
+- 375 x 812, 390 x 844, 768 x 1024, 1280 x 700, and 1440 x 900: horizontal overflow `0`.
+- Results column at every tested viewport: `position: static`, `overflow: visible`; no independent left/right scrolling.
+- 390 px toolbar matches source order and sizing: three-theme control, reset, and a 44 px copy icon button.
+- Theme control exposes and preserves all three states: light, dark, and system.
+- Same-row control-top delta is `0px` for both simple and advanced shared fields.
+- API Key reveal control is 44 x 44 and vertically aligned with the key input in light mode.
+- `prefers-reduced-transparency: reduce` removes backdrop filters; reduced motion removes visual morph transitions.
+- Browser event queue reported no console errors or runtime exceptions during the mode/theme/responsive pass.
+- Viewport screenshot calls completed normally after reusing one ego-lite task space and avoiding full-page captures of the long calculator document.
 
-The 390 px implementation preserves the source hierarchy and card start position. The 1280 px implementation keeps the same two-column balance while allowing the production result empty state to remain visible. No horizontal overflow is present at 375, 390, 768, 1280, or 1440 px, and the results column uses the shared page scroll rather than an independent scroll container.
+## Automated verification
 
-## Focused comparison
-
-- API Key eye: 44 x 44 px hit target, transparent background, zero border and shadow in light mode, visually contained inside the input. Clearing the value restores `type=password` and the `显示 API Key` label.
-- Theme chooser: three icon-only states remain available and mutually exclusive: day, night, and follow system.
-- Manual fallback: `自动读取缺失时手动补充` is a 64 px-high disclosure with a visible boundary, supporting text, chevron, and grouped inset fields.
-- Dark mode: navy background, muted specular highlights, readable buttons and body copy, without pure-white glare.
-- Images/assets: the target has no photographic or illustrative assets. Existing iconography is consistent and sharp at device scale factor 1.
-
-## Required fidelity surfaces
-
-- Fonts and typography: system/PingFang stack, matching display/body hierarchy, stable Chinese wrapping, and readable compact labels.
-- Spacing and layout rhythm: source-aligned top controls, card radii, grouped fields, and consistent 44 px minimum controls; the real progress rail was moved into the connection card to remove excess vertical drift.
-- Colors and tokens: pale cyan/indigo light environment and deep navy dark environment; teal is reserved for active controls and key results.
-- Image quality and asset fidelity: no raster assets are required; icons render cleanly without placeholder artwork.
-- Copy and content: production copy reflects actual New API/Sub2API/One API behavior and the browser-only API Key path rather than prototype-only claims.
-- Interaction/accessibility: semantic radios, visible labels, keyboard-compatible controls, three-state theme behavior, and no console exceptions in the tested states.
-
-## Comparison history
-
-1. P1: the light-theme eye control rendered as a separate white tail. Fixed by using one transparent 44 px overlay button inside the input, with hover/focus feedback confined to a circular pseudo-layer. Post-fix evidence: `/path/to/local-captures/relay-liquid-production-eye-hidden-light-final.png`.
-2. P2: the fixed exchange rate looked like an editable field and occupied a separate column. Fixed by removing the input entirely and placing the fixed `1 USD = ¥7.20` explanation under the budget field.
-3. P2: the novice progress rail sat outside the first card and pushed production content below the OpenDesign target. Fixed by moving the rail into the single- and multi-station setup cards. Post-fix evidence: the final 390 x 844 and 1280 x 720 implementation captures above.
-4. P2: the manual fallback read like plain text. Fixed with a bounded disclosure surface, clear title/subtitle, chevron, and inset grouped fields. Post-fix evidence: `/path/to/local-captures/relay-liquid-production-manual-disclosure-light.png`.
-
-## Verification
-
-- ego-lite production-build rendering at 375, 390, 768, 1280, and 1440 px: no horizontal overflow.
-- ego-lite screenshot capture: viewport-level CDP path completed in 132 ms, replacing the slow full-page capture path.
-- ego-lite key flow: the inspect request contained only `baseUrl`; the API Key went only to the target station log endpoint, was cleared afterward, was not found in browser storage, and produced the expected `¥23.0727` fixture result with a 25% cache rate.
-- Vitest: 12 files, 96 tests passed.
 - Production build: passed.
+- Vitest: 12 files / 96 tests passed.
+- Business calculation types, formulas, API response types, browser-only API Key path, and state isolation were not changed.
 
-## Remaining differences
+## Intentional production-only additions
 
-The implementation keeps production-only progress, capability, fallback, and security content that the OpenDesign prototype does not model. These are intentional product constraints, not unresolved visual defects. No actionable P0, P1, or P2 findings remain.
+- The production UI retains real model/provider provenance, complete calculator controls, inspection capability details, validation messages, and local-data settings below the OpenDesign-aligned primary composition.
+- The OpenDesign demo's simulated success/toast states are not copied as fake production behavior.
 
 final result: passed

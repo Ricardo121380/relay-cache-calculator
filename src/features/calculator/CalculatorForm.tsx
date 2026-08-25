@@ -17,11 +17,8 @@ import { allValid, summarizeRanking, type RankingSummary, type StationCalc } fro
 import { buildFormulaLines } from './calculator.formula'
 import { describeScenarioMode } from './calculator.validation'
 import { usePersistedSettings } from '../../hooks/usePersistedSettings'
-import { StepModel } from './StepModel'
-import { SingleRelayFields } from './SingleRelayFields'
-import { StepUsage } from './StepUsage'
-import { CompareStations } from './CompareStations'
 import { AdvancedSection } from './AdvancedSection'
+import { AdvancedMode } from './AdvancedMode'
 import { SimpleMode } from './SimpleMode'
 import { ResultSummary } from './ResultSummary'
 import { CostBreakdown } from './CostBreakdown'
@@ -40,7 +37,6 @@ import { NoviceCompareMode } from '../novice/NoviceCompareMode'
 import { useNoviceCompareCalculator } from '../novice/useNoviceCompareCalculator'
 
 const models: ModelPrice[] = modelPrices as ModelPrice[]
-const STEP_NAMES = ['方案基础 · 模型价格', '使用结构', '各站配置'] as const
 const STATION_FIELDS = new Set(['modelMultiplier', 'groupMultiplier', 'cacheHitRate'])
 
 export function CalculatorForm() {
@@ -75,12 +71,6 @@ export function CalculatorForm() {
 
   // 小白模式是独立顶层视图，不进入 CalculatorSettings，也不触碰简易/高级模式的持久化状态。
   const enterNoviceMode = () => setNoviceActive(true)
-
-  // 对比模式分步向导状态：任意步骤可直接点击跳转
-  const [activeStep, setActiveStep] = useState(0)
-  const openStep = (i: number) => setActiveStep(i)
-  const goNext = () => setActiveStep((s) => Math.min(s + 1, 2))
-  const goBack = () => setActiveStep((s) => Math.max(s - 1, 0))
 
   // 当前模式的输入 + 各站结果
   const input = activeInput(settings)
@@ -150,20 +140,23 @@ export function CalculatorForm() {
     ? (noviceCompareActive ? noviceCompare.budgetCny : novice.budgetCny)
     : input.budgetCny
   const inputModeValue = noviceActive ? 'novice' : uiSimple ? 'simple' : 'advanced'
+  const resultEyebrow = noviceActive
+    ? `小白 · ${noviceCompareActive ? '多站' : '单站'}`
+    : `${uiSimple ? '简易' : '高级'} · ${compare ? '多站' : '单站'}`
   const modeContextTitle = noviceActive
     ? noviceCompareActive ? '多站自动读取与对比' : '站点自动读取'
     : compare ? '多站对比方案' : '单站计算'
   const modeContextDescription = noviceActive
     ? noviceCompareActive
-      ? '逐家读取公开倍率；对应 API Key 仅由浏览器直连该站，完整站点会进入统一排行榜。'
-      : '读取站点公开倍率；提供普通 API Key 后，从近期日志聚合你的真实缓存命中率。'
+      ? '小白模式分离公开读取与浏览器 Key 读取；完整站点进入统一对比。'
+      : '小白模式分离公开读取与浏览器 Key 读取；当前等待连接。'
     : uiSimple
       ? compare
-        ? '选好模型后，逐家填写倍率与缓存命中率；其余口径全部内置。'
-        : '选好模型，填写倍率与缓存命中率即可；其余口径全部内置。'
+        ? '简易模式保留关键参数；多站使用同一模型价格。'
+        : '简易模式保留关键参数；单站结果实时更新。'
       : compare
-        ? `一套共享基础与使用结构，逐家配置中转站，最多 ${MAX_STATIONS} 家。`
-        : '完整配置一个中转站，所有结果随输入实时更新。'
+        ? `高级多站可分别设置计价模式，并验证完整公式；最多 ${MAX_STATIONS} 家。`
+        : '高级模式开放完整价格、精确用量与计价模式。'
   // ---- 复制结果 ----
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<number | undefined>(undefined)
@@ -297,7 +290,11 @@ export function CalculatorForm() {
               ? (noviceCompareActive ? !noviceCompare.ranking : !novice.result)
               : compare ? !ranking : !singleResult}
           >
-            {copied ? '已复制 ✓' : '复制结果'}
+            <svg className="btn__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="8" y="8" width="10" height="11" rx="2" />
+              <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" />
+            </svg>
+            <span>{copied ? '已复制 ✓' : '复制结果'}</span>
           </button>
         </div>
       </header>
@@ -365,43 +362,17 @@ export function CalculatorForm() {
       <div className={'calc__grid' + (!activeComparison ? ' calc__grid--single' : '')}>
         <div className="calc__inputs">
           <header className="calculator-heading">
-            <p className="calculator-heading__eyebrow">真实单价 · 只缓存输入 · 实时换算</p>
-            <h2>比较真实 token 成本</h2>
-            <p>
-              {activeComparison
-                ? '按同一输入输出口径，并排看清各站每 1M 混合 token 花费与同预算可用量。'
-                : '按当前输入输出口径，看清每 1M 混合 token 花费与同预算可用量。'}
-            </p>
-          </header>
-          {/* 分区标题：设置 */}
-          <div className="zone-head">
-            <span className="zone-head__icon" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h6M14 17h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-            </span>
-            <span className="zone-head__title">设置</span>
-            <span className="zone-head__hint">
-              {noviceActive
-                ? (noviceCompareActive ? '逐家读取参数，补全后自动生成排行榜' : '连接站点后确认模型、分组和缓存命中率')
-                : '在左侧完成三步，右侧实时出结果'}
-            </span>
-          </div>
-
-          {!noviceActive && !compare ? (
-            <div className="flow-ribbon" aria-label="设置流程">
-              <span className="flow-ribbon__step">
-                {uiSimple ? '① 选择模型' : '① 模型与价格'}
-              </span>
-              <span className="flow-ribbon__arrow" aria-hidden="true">→</span>
-              <span className="flow-ribbon__step">
-                {uiSimple ? '② 倍率与缓存率' : '② 倍率与缓存'}
-              </span>
-              <span className="flow-ribbon__arrow" aria-hidden="true">→</span>
-              {!uiSimple ? (
-                <><span className="flow-ribbon__step">③ 使用结构</span><span className="flow-ribbon__arrow" aria-hidden="true">→</span></>
-              ) : null}
-              <span className="flow-ribbon__step flow-ribbon__step--result">结果（实时）</span>
+            <div>
+              <p className="calculator-heading__eyebrow">真实单价 · 只缓存输入 · 实时换算</p>
+              <h2>比较真实 token 成本</h2>
+              <p>
+                {activeComparison
+                  ? '按同一输入输出口径，并排看清各站每 1M 混合 token 花费与同预算可用量。'
+                  : '按当前输入输出口径，看清每 1M 混合 token 花费与同预算可用量。'}
+              </p>
             </div>
-          ) : null}
+            <span className="prototype-label">真实计算</span>
+          </header>
 
           {noviceActive ? (
             noviceCompareActive
@@ -414,6 +385,7 @@ export function CalculatorForm() {
               models={models}
               stations={stationsCfg}
               onSelectModel={selectModel}
+              onUpdateInput={updateInput}
               onUpdateSingle={updateSingleStation}
               onUpdateStation={updateStation}
               onAddStation={addStation}
@@ -421,123 +393,37 @@ export function CalculatorForm() {
               onSwitchAdvanced={() => switchUiMode('advanced')}
               errors={errors}
             />
-          ) : compare ? (
-            <>
-              <nav className="stepper" aria-label="对比方案步骤">
-                {STEP_NAMES.map((name, i) => {
-                  const isActive = activeStep === i
-                  const isDone = i < activeStep
-                  return (
-                    <span key={name} className="stepper__group">
-                      {i > 0 ? <span className={'stepper__line' + (i <= activeStep ? ' is-done' : '')} aria-hidden="true" /> : null}
-                      <button
-                        type="button"
-                        className={'stepper__item' + (isActive ? ' is-active' : '') + (isDone ? ' is-done' : '')}
-                        onClick={() => openStep(i)}
-                        aria-current={isActive ? 'step' : undefined}
-                      >
-                        <span className="stepper__num">{isDone ? '✓' : i + 1}</span>
-                        <span className="stepper__label">{name}</span>
-                      </button>
-                    </span>
-                  )
-                })}
-              </nav>
-
-              {activeStep === 0 ? (
-                <StepModel
-                  input={settings.compare.input}
-                  models={models}
-                  onUpdate={updateInput}
-                  onSelectModel={selectModel}
-                  onSelectCustom={selectCustomModel}
-                  onNext={goNext}
-                  errors={errors}
-                  title="方案基础 · 模型与价格"
-                  desc="本对比方案共用的模型与单价；后续所有站都基于它计算。"
-                />
-              ) : (
-                <WizardSummaryRow title="① 模型与价格" detail={stepModelSummary(settings.compare.input, models)} onClick={() => openStep(0)} />
-              )}
-
-              {activeStep === 1 ? (
-                <StepUsage
-                  input={settings.compare.input}
-                  onUpdateInput={updateInput}
-                  onUpdateExact={updateExact}
-                  onBack={goBack}
-                  onNext={goNext}
-                  errors={errors}
-                  title="方案使用结构"
-                  desc="计算模式、比例与预算为对比方案共用；缓存率在各站配置中填写。"
-                />
-              ) : (
-                <WizardSummaryRow title="② 使用结构" detail={stepUsageSummary(settings)} onClick={() => openStep(1)} />
-              )}
-
-              {activeStep === 2 ? (
-                <CompareStations
-                  settings={settings}
-                  onUpdateStation={updateStation}
-                  onAddStation={addStation}
-                  onRemoveStation={removeStation}
-                  onBack={goBack}
-                  errors={errors}
-                />
-              ) : (
-                <WizardSummaryRow title="③ 各站配置" detail={compareStationsSummary(settings)} onClick={() => openStep(2)} />
-              )}
-            </>
           ) : (
-            <>
-              <StepModel
-                input={settings.single.input}
-                models={models}
-                onUpdate={updateInput}
-                onSelectModel={selectModel}
-                onSelectCustom={selectCustomModel}
-                showNav={false}
-                errors={errors}
-                title="① 模型与价格"
-              />
-              <section className="step-card" aria-labelledby="single-relay-title">
-                <h2 id="single-relay-title" className="step-card__title">② 中转站与缓存</h2>
-                <SingleRelayFields
-                  station={settings.single.station}
-                  onUpdate={updateSingleStation}
-                  errors={errors}
-                />
-              </section>
-              <StepUsage
-                input={settings.single.input}
-                onUpdateInput={updateInput}
-                onUpdateExact={updateExact}
-                showNav={false}
-                errors={errors}
-                title="③ 使用结构"
-              />
-            </>
+            <AdvancedMode
+              compare={compare}
+              input={input}
+              models={models}
+              stations={stationsCfg}
+              stationCosts={outcomes.map((outcome) => outcome.result
+                ? formatMoneyCny(mainCostOfResult(outcome.result), { decimals: settings.displayDecimals })
+                : null)}
+              onSelectModel={selectModel}
+              onSelectCustom={selectCustomModel}
+              onUpdateInput={updateInput}
+              onUpdateExact={updateExact}
+              onUpdateSingle={updateSingleStation}
+              onUpdateStation={updateStation}
+              onAddStation={addStation}
+              onRemoveStation={removeStation}
+              errors={errors}
+            />
           )}
 
           {!noviceActive && !uiSimple && (
             <AdvancedSection
               settings={settings}
               onUpdate={update}
-              onUpdateInput={updateInput}
               onClearLocalData={clearLocalData}
-              errors={errors}
             />
           )}
         </div>
 
-        <aside className="calc__results">
-          <div className="zone-head zone-head--result">
-            <span className="zone-head__icon" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h6M14 17h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-            </span>
-            <span className="zone-head__title">实时结果</span>
-            <span className="zone-head__hint">随左侧输入即时更新</span>
-          </div>
+        <aside id="result-panel" className="calc__results" aria-label="计算结果">
           {noviceActive ? (
             noviceCompareActive ? (
               noviceCompare.ranking ? (
@@ -559,27 +445,41 @@ export function CalculatorForm() {
               )
             ) : novice.result ? (
                 <div className="result-stack">
-                  <ResultSummary result={novice.result} displayDecimals={settings.displayDecimals} budgetCny={novice.budgetCny} />
+                  <ResultSummary
+                    eyebrow={resultEyebrow}
+                    stationLabel={novice.inspection?.stationName || '中转站'}
+                    basisLabel={`${novice.selectedModelName || '当前模型'} · 输入 10 : 输出 1`}
+                    result={novice.result}
+                    displayDecimals={settings.displayDecimals}
+                    budgetCny={novice.budgetCny}
+                  />
                   <CostBreakdown result={novice.result} displayDecimals={settings.displayDecimals} />
                   <FormulaDetails lines={[...describeNoviceUnitPrices(novice), ...novice.formulaLines]} />
                 </div>
               ) : (
-                <NoviceEmptyState requestState={novice.requestState} />
+                <NoviceEmptyState requestState={novice.requestState} eyebrow={resultEyebrow} />
               )
           ) : compare ? (
             ranking ? (
               <RankCompare stations={outcomes} ranking={ranking} stationNames={stationNames} displayDecimals={settings.displayDecimals} />
             ) : (
-              <EmptyState compare />
+              <EmptyState compare eyebrow={resultEyebrow} />
             )
           ) : singleResult ? (
             <div className="result-stack">
-              <ResultSummary result={singleResult} displayDecimals={settings.displayDecimals} budgetCny={budgetCny} />
+              <ResultSummary
+                eyebrow={resultEyebrow}
+                stationLabel={stationsCfg[0]?.name || '中转站'}
+                basisLabel={`${models.find((model) => model.id === input.selectedModelId)?.name || '自定义模型'} · 输入 ${input.inputRatio} : 输出 ${input.outputRatio}`}
+                result={singleResult}
+                displayDecimals={settings.displayDecimals}
+                budgetCny={budgetCny}
+              />
               <CostBreakdown result={singleResult} displayDecimals={settings.displayDecimals} />
               <FormulaDetails lines={formulaLines} />
             </div>
           ) : (
-            <EmptyState compare={false} />
+            <EmptyState compare={false} eyebrow={resultEyebrow} />
           )}
         </aside>
       </div>
@@ -595,19 +495,23 @@ export function CalculatorForm() {
         <span>内置模型价格为参考价，非官方当前价 · 结果仅供参考</span>
       </footer>
 
-      {mobileResult && (
-        <div className="mobile-summary" aria-hidden="true">
-          <span className="mobile-summary__cost">
-            {mobileResultName ? mobileResultName + ' ' : ''}
-            {formatMoneyCny(mainCostOfResult(mobileResult), { decimals: settings.displayDecimals })}
-            {mobileResult.scenarioMode === 'exact-usage' ? '' : '/1M'}
-          </span>
-          <span className="mobile-summary__budget">
-            预算 ¥{budgetCny || '0'} ≈{' '}
-            {mobileResult.budgetCapacity.totalTokens ? formatTokensCompact(mobileResult.budgetCapacity.totalTokens) : '—'}
-          </span>
+      <div className="mobile-summary glass-surface glass-surface--heavy">
+        <div>
+          <span>{mobileResult ? (activeComparison ? '最省站点' : '单站成本') : '预算可用'}</span>
+          <strong className="mobile-summary__cost">
+            {mobileResult
+              ? `${mobileResultName ? mobileResultName + ' ' : ''}${formatMoneyCny(mainCostOfResult(mobileResult), { decimals: settings.displayDecimals })}${mobileResult.scenarioMode === 'exact-usage' ? '' : ' / 1M'}`
+              : '—'}
+          </strong>
         </div>
-      )}
+        <div>
+          <span>预算可用</span>
+          <strong className="mobile-summary__budget">
+            {mobileResult?.budgetCapacity.totalTokens ? formatTokensCompact(mobileResult.budgetCapacity.totalTokens) : '—'}
+          </strong>
+        </div>
+        <button type="button" onClick={() => document.getElementById('result-panel')?.scrollIntoView({ behavior: 'smooth' })}>看结果</button>
+      </div>
     </div>
   )
 }
@@ -616,44 +520,49 @@ function stationNamesFor(stations: StationSettings[]): string[] {
   return stations.map((station) => station.name)
 }
 
-function EmptyState({ compare }: { compare: boolean }) {
+function EmptyState({ compare, eyebrow }: { compare: boolean; eyebrow: string }) {
   return (
-    <div className="empty-state">
-      <div className="empty-state__icon" aria-hidden="true">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="4" width="18" height="16" rx="4" stroke="currentColor" strokeWidth="1.6" />
-          <rect x="6.5" y="9" width="3.6" height="7" rx="1.2" fill="currentColor" opacity="0.7" />
-          <rect x="11" y="6.5" width="3.6" height="9.5" rx="1.2" fill="currentColor" opacity="0.85" />
-          <rect x="15.5" y="11" width="3.6" height="5" rx="1.2" fill="currentColor" opacity="0.5" />
-        </svg>
-      </div>
-      <div className="empty-state__title">{compare ? '等待各站参数' : '等待输入'}</div>
-      <div className="empty-state__desc">
-        {compare
+    <section className="results-hud glass-surface glass-surface--regular">
+      <ResultHudHeader eyebrow={eyebrow} />
+      <div className="result-empty">
+        <strong>{compare ? '等待各站参数' : '等待完整参数'}</strong>
+        <p>{compare
           ? '补全方案基础与各站配置后，排行榜会实时显示在这里。'
-          : '补全左侧设置后，每 1M 成本与预算可用量会实时显示在这里。'}
+          : '补全左侧设置后，每 1M 成本与预算可用量会实时显示在这里。'}</p>
       </div>
-    </div>
+    </section>
   )
 }
 
-function NoviceEmptyState({ requestState }: { requestState: NoviceController['requestState'] }) {
+function NoviceEmptyState({ requestState, eyebrow }: { requestState: NoviceController['requestState']; eyebrow: string }) {
   const loading = requestState === 'loading'
   return (
-    <div className="empty-state">
-      <div className="empty-state__icon" aria-hidden="true">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-          <path d="M8 7h8M7 12h10M9 17h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="1.6" />
-        </svg>
+    <>
+      <section className="results-hud glass-surface glass-surface--regular">
+        <ResultHudHeader eyebrow={eyebrow} />
+        <div className="result-empty">
+          <strong>{loading ? '正在读取站点数据' : '等待完整参数'}</strong>
+          <p>{loading
+            ? '正在检查公开倍率与分组，并从浏览器尝试直连近期日志。'
+            : '连接站点并补全计价、倍率和缓存率后，结果才会进入计算。'}</p>
+        </div>
+      </section>
+      <section className="result-boundary-note">
+        <strong>真实读取边界</strong>
+        <p>公开配置由本站 Function 读取；API Key 仅由你的浏览器直连目标站，不会进入本站服务器。</p>
+      </section>
+    </>
+  )
+}
+
+function ResultHudHeader({ eyebrow }: { eyebrow: string }) {
+  return (
+    <header className="results-hud__header">
+      <div>
+        <p>{eyebrow}</p>
+        <h2>每 1M 混合 token 成本</h2>
       </div>
-      <div className="empty-state__title">{loading ? '正在读取站点数据' : '等待连接中转站'}</div>
-      <div className="empty-state__desc">
-        {loading
-          ? '正在检查公开倍率与分组，并从浏览器尝试直连近期日志。'
-          : '填写 Base URL 后开始；API Key 可选，仅在浏览器中用于读取你自己的近期调用日志。'}
-      </div>
-    </div>
+    </header>
   )
 }
 
@@ -674,52 +583,8 @@ function NoviceCompareEmptyState({ readyCount, stationCount }: { readyCount: num
   )
 }
 
-function WizardSummaryRow({ title, detail, onClick }: { title: string; detail: string; onClick: () => void }) {
-  return (
-    <button type="button" className="step-summary" onClick={onClick} aria-label={'编辑' + title}>
-      <span className="step-summary__head">
-        <span className="step-summary__check" aria-hidden="true">✓</span>
-        {title}
-      </span>
-      <span className="step-summary__detail">{detail}</span>
-    </button>
-  )
-}
-
 function mainCostOfResult(r: CalculationResult): string {
   return r.scenarioMode === 'input-only' ? r.inputCostPerMillionCny : r.scenarioMode === 'mixed-total' ? r.mixedCostPerMillionCny : r.exactUsageCostCny ?? '0'
-}
-
-function stepModelSummary(input: ModeInputSettings, models: ModelPrice[]): string {
-  const selected = models.find((m) => m.id === input.selectedModelId)
-  const name = selected ? selected.name : '自定义模型'
-  const cache = input.cachePriceMode === 'coefficient'
-    ? '缓存系数 ' + input.cachePriceCoefficient
-    : '缓存 ' + input.cachedReadPricePerMillion
-  return (
-    name + ' · ' + input.currency +
-    ' · 输入 ' + input.inputPricePerMillion +
-    ' · ' + cache +
-    ' · 输出 ' + input.outputPricePerMillion +
-    (input.currency === 'USD' ? ' · 汇率 ' + input.exchangeRateToCny : '')
-  )
-}
-
-function stationBrief(s: StationSettings): string {
-  return (s.name || '中转站') + ' 倍率' + s.modelMultiplier + ' 缓存' + s.cacheHitRatePercent + '%' + (s.pricingMode === 'final-unit-price' ? '(终价)' : '')
-}
-
-function stepUsageSummary(settings: CalculatorSettings): string {
-  const input = activeInput(settings)
-  const mode = input.scenarioMode === 'input-only' ? '仅输入' : input.scenarioMode === 'mixed-total' ? '混合' : '精确用量'
-  let s = mode
-  if (input.scenarioMode === 'mixed-total') s += ' · 比例 ' + input.inputRatio + ':' + input.outputRatio
-  s += ' · 预算 ¥' + input.budgetCny
-  return s
-}
-
-function compareStationsSummary(settings: CalculatorSettings): string {
-  return settings.compare.stations.map((s, i) => (i + 1) + '·' + stationBrief(s)).join(' ｜ ')
 }
 
 async function writeClipboard(text: string): Promise<void> {

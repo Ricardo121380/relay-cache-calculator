@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent, { type UserEvent } from '@testing-library/user-event'
+import userEvent from '@testing-library/user-event'
 import { CalculatorForm } from './CalculatorForm'
 import { createDefaultSettings, STORAGE_KEY } from './calculator.settings'
 import type { RelayInspection } from '../novice/relay.types'
@@ -35,7 +35,7 @@ describe('单站模式（独立设置页）', () => {
     await user.click(screen.getByText('仅输入 token'))
     expect(screen.getAllByText('每 1M 输入成本').length).toBeGreaterThan(0)
     expect(screen.getAllByText('¥5.52').length).toBeGreaterThan(0)
-    expect(screen.getByText('单站计算')).toBeInTheDocument()
+    expect(screen.getAllByText('单站计算').length).toBeGreaterThan(0)
   })
 
   it('美元模型的有效输入单价使用美元单位', async () => {
@@ -161,33 +161,23 @@ describe('单站模式（独立设置页）', () => {
   })
 })
 
-describe('多站对比模式（独立向导）', () => {
-  async function goToStep(user: UserEvent, target: number) {
-    for (let i = 0; i < target; i++) {
-      await user.click(screen.getByRole('button', { name: /下一步/ }))
-    }
-  }
-
-  it('切换后出现模式横幅与对比步骤条', async () => {
+describe('多站对比模式（连续工作区）', () => {
+  it('切换后出现模式说明与连续对比工作区', async () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(screen.getByRole('radio', { name: '多站对比' }))
     expect(screen.getByText('多站对比方案')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /方案基础/ })).toBeInTheDocument()
+    expect(screen.getByText('先确认模型价格')).toBeInTheDocument()
+    expect(screen.getByText('2 站实时对比')).toBeInTheDocument()
     expect(document.querySelector('.mobile-summary')).toBeInTheDocument()
     expect(document.querySelector('.mobile-summary__cost')?.textContent).toMatch(/中转站/)
   })
 
-  it('三步向导：模型价格 → 使用结构 → 各站配置（含增删与每站缓存率）', async () => {
+  it('模型价格、使用结构与各站配置同页可编辑（含增删与每站缓存率）', async () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(screen.getByRole('radio', { name: '多站对比' }))
-    // 步骤 2：使用结构（无缓存率，无站点名）
-    await goToStep(user, 1)
-    expect(screen.getByText('方案使用结构')).toBeInTheDocument()
-    expect(screen.queryByLabelText('中转站 1 名称')).not.toBeInTheDocument()
-    // 步骤 3：各站配置
-    await goToStep(user, 1)
+    expect(screen.getByRole('radio', { name: '混合 token' })).toBeInTheDocument()
     expect(screen.getByLabelText('中转站 1 名称')).toBeInTheDocument()
     expect(screen.getByLabelText('中转站 2 名称')).toBeInTheDocument()
     expect(screen.getByLabelText('中转站 1 缓存命中率')).toBeInTheDocument()
@@ -205,9 +195,7 @@ describe('多站对比模式（独立向导）', () => {
     await user.click(screen.getByRole('radio', { name: '多站对比' }))
     // 切到标准示例口径：示例模型 + 仅输入 token
     await user.selectOptions(screen.getByLabelText('模型'), 'example-standard')
-    await goToStep(user, 1)
     await user.click(screen.getByText('仅输入 token'))
-    await goToStep(user, 1)
     expect(screen.getByText(/2 站对比 ·/)).toBeInTheDocument()
     expect(screen.getAllByText('最省').length).toBeGreaterThan(0)
     expect(screen.getAllByText('¥5.52 元/1M').length).toBeGreaterThan(0)
@@ -228,9 +216,8 @@ describe('多站对比模式（独立向导）', () => {
     await user.type(screen.getByLabelText('预算金额'), '50')
     // 切到多站：应为对比默认（GPT-5.6 Sol：4 / 10）
     await user.click(screen.getByRole('radio', { name: '多站对比' }))
-    // 对比停在步骤 1（模型价格展开）：应是对比自己的默认 4
+    // 对比工作区应恢复它自己的默认值
     expect((screen.getByLabelText('普通输入单价') as HTMLInputElement).value).toBe('4')
-    await goToStep(user, 1)
     expect((screen.getByLabelText('预算金额') as HTMLInputElement).value).toBe('10')
   })
 })

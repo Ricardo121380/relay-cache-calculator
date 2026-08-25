@@ -11,6 +11,7 @@ export interface SimpleModeProps {
   /** 简易对比模式下为多家中转站；单站为 [station] */
   stations: StationSettings[]
   onSelectModel: (m: ModelPrice) => void
+  onUpdateInput: (patch: Partial<ModeInputSettings>) => void
   onUpdateSingle: (patch: Partial<StationSettings>) => void
   onUpdateStation: (index: number, patch: Partial<StationSettings>) => void
   onAddStation: () => void
@@ -34,6 +35,7 @@ export function SimpleMode({
   models,
   stations,
   onSelectModel,
+  onUpdateInput,
   onUpdateSingle,
   onUpdateStation,
   onAddStation,
@@ -45,64 +47,82 @@ export function SimpleMode({
 
   return (
     <>
-      <section className="step-card" aria-labelledby="simple-model-title">
-        <h2 id="simple-model-title" className="step-card__title">① 选择模型</h2>
-        <p className="step-card__desc">选好即用 — 价格来自预设。</p>
-
-        <div className="field">
-          <label className="field__label" htmlFor="simple-model-select">模型</label>
-          <select
-            id="simple-model-select"
-            className="field__select"
-            value={input.selectedModelId ?? ''}
-            onChange={(e) => {
-              const m = models.find((x) => x.id === e.target.value)
-              if (m) onSelectModel(m)
-            }}
-          >
-            <option value="" disabled>自定义模型（单价请在高级模式维护）</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}（{m.provider}）</option>
-            ))}
-          </select>
-          {selected ? (
-            <p className="field__hint">
-              {selected.isReference ? '⚠ 参考价，非官方当前价' : '官方价格预设'} · 更新于 {selected.updatedAt}
-              {selected.sourceUrl ? (
-                <>
-                  {' '}· <a href={selected.sourceUrl} target="_blank" rel="noreferrer">价格来源</a>
-                </>
-              ) : null}
-              {selected.notes ? (
-                <>
-                  <br />{selected.notes}
-                </>
-              ) : null}
-            </p>
-          ) : (
-            <p className="field__hint">当前使用自定义单价；选择预设模型会用预设价格覆盖单价。</p>
-          )}
+      <section className="step-card simple-pricing-panel" aria-labelledby="simple-model-title">
+        <div className="panel-heading">
+          <div>
+            <p className="step-label">01 · 模型与共同口径</p>
+            <h2 id="simple-model-title" className="step-card__title">先确认模型价格</h2>
+          </div>
+          <span className="status-label">实时计算</span>
         </div>
 
-        <div className="price-chips" aria-label="当前价格快照">
-          <span className="price-chip">输入 <b>{input.inputPricePerMillion || '—'}</b></span>
-          <span className="price-chip">缓存读取 <b>{input.cachedReadPricePerMillion || '—'}</b></span>
-          <span className="price-chip">输出 <b>{input.outputPricePerMillion || '—'}</b></span>
-          <span className="price-chip">{input.currency}</span>
+        <div className="simple-shared-grid">
+          <div className="field">
+            <label className="field__label" htmlFor="simple-model-select">模型</label>
+            <select
+              id="simple-model-select"
+              className="field__select"
+              value={input.selectedModelId ?? ''}
+              onChange={(e) => {
+                const m = models.find((x) => x.id === e.target.value)
+                if (m) onSelectModel(m)
+              }}
+            >
+              <option value="" disabled>自定义模型</option>
+              {models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+            <p className="field__hint">{selected ? '示例预设可继续编辑' : '当前使用自定义单价'}</p>
+          </div>
+          <NumberField
+            id="simple-budget"
+            label="预算"
+            ariaLabel="预算金额"
+            value={input.budgetCny}
+            onChange={(value) => onUpdateInput({ budgetCny: value })}
+            prefix="¥"
+            hint="实时换算可用 token"
+            error={errors.budgetCny ?? errors.budget}
+          />
+          <NumberField
+            id="simple-exchange-rate"
+            label="汇率"
+            ariaLabel="美元兑人民币汇率"
+            value={input.exchangeRateToCny}
+            onChange={(value) => onUpdateInput({ exchangeRateToCny: value })}
+            suffix="CNY / USD"
+            hint="简易与高级模式可编辑"
+            error={errors.exchangeRateToCny}
+          />
         </div>
+
+        <div className="simple-price-snapshot" aria-label="当前价格快照">
+          <div><span>普通输入</span><strong>${input.inputPricePerMillion || '—'}</strong></div>
+          <div><span>缓存读取</span><strong>${input.cachedReadPricePerMillion || '—'}</strong></div>
+          <div><span>输出</span><strong>${input.outputPricePerMillion || '—'}</strong></div>
+          <div><span>缓存写入</span><strong>${input.cacheWritePricePerMillion || '—'}</strong></div>
+        </div>
+
+        <p className="simple-basis-note"><strong>混合输入 : 输出固定 10 : 1。</strong> 有效输入价按普通输入与缓存读取加权，模型倍率 × 分组倍率只应用一次。</p>
       </section>
 
-      {compare ? (
-        <section className="step-card" aria-labelledby="simple-stations-title">
-          <h2 id="simple-stations-title" className="step-card__title">② 各中转站</h2>
-          <p className="step-card__desc">每家 2 项，可改名，最多 5 家。</p>
+      <section className="simple-stations-section" aria-labelledby="simple-stations-title">
+        <div className="section-row">
+          <div>
+            <p className="step-label">02 · 中转站参数</p>
+            <h2 id="simple-stations-title">{compare ? '各中转站' : '单站计算'}</h2>
+          </div>
+          {compare && stations.length < 5 ? (
+            <button type="button" className="btn btn--ghost simple-add" onClick={onAddStation}>添加中转站</button>
+          ) : null}
+        </div>
 
-          <div className="simple-station-grid">
-            {stations.map((station, i) => {
+        <div className="simple-station-grid">
+          {compare ? (
+            stations.map((station, i) => {
               const displayName = station.name || '中转站 ' + (i + 1)
               const removable = stations.length > 2
               return (
-                <div key={i} className="simple-station">
+                <article key={i} className="simple-station">
                   <div className="simple-station__head">
                     <span className="simple-station__badge" aria-hidden="true">{i + 1}</span>
                     <input
@@ -122,7 +142,7 @@ export function SimpleMode({
                       </button>
                     ) : null}
                   </div>
-                  <FieldGroup split className="simple-station__fields" label={`${displayName}倍率与缓存命中率`}>
+                  <FieldGroup className="simple-station__fields" label={`${displayName}倍率与缓存命中率`}>
                     <NumberField
                       id={'simple-multiplier-' + (i + 1)}
                       label={displayName + ' 倍率'}
@@ -132,6 +152,15 @@ export function SimpleMode({
                       placeholder="1.0"
                       error={errors['modelMultiplier-' + (i + 1)] ?? errors.modelMultiplier}
                     />
+                    <NumberField
+                      id={'simple-group-multiplier-' + (i + 1)}
+                      label={displayName + ' 分组倍率'}
+                      value="1"
+                      onChange={() => undefined}
+                      suffix="×"
+                      disabled
+                      hint="简易模式固定 1×"
+                    />
                     <PercentField
                       id={'simple-cache-rate-' + (i + 1)}
                       label={displayName + ' 缓存命中率'}
@@ -140,27 +169,16 @@ export function SimpleMode({
                       error={errors['cacheHitRate-' + (i + 1)] ?? errors.cacheHitRate}
                     />
                   </FieldGroup>
-                </div>
+                </article>
               )
-            })}
-          </div>
-          {stations.length < 5 && (
-            <button type="button" className="btn btn--ghost simple-add" onClick={onAddStation}>
-              {'+ 添加中转站（' + stations.length + '/5）'}
-            </button>
-          )}
-        </section>
-      ) : (
-        <section className="step-card" aria-labelledby="simple-relay-title">
-          <h2 id="simple-relay-title" className="step-card__title">② 中转站</h2>
-          <p className="step-card__desc">2 项填完即得结果。</p>
-          <div className="simple-station-grid">
+            })
+          ) : (
             <div className="simple-station">
               <div className="simple-station__head">
                 <span className="simple-station__badge" aria-hidden="true">1</span>
                 <span className="simple-station__name">{stations[0]?.name || '中转站'}</span>
               </div>
-              <FieldGroup split className="simple-station__fields" label="中转站倍率与缓存命中率">
+              <FieldGroup className="simple-station__fields" label="中转站倍率与缓存命中率">
                 <NumberField
                   id="simple-model-multiplier"
                   label="模型倍率"
@@ -169,6 +187,15 @@ export function SimpleMode({
                   suffix="×"
                   placeholder="1.0"
                   error={errors['modelMultiplier-1'] ?? errors.modelMultiplier}
+                />
+                <NumberField
+                  id="simple-group-multiplier"
+                  label="分组倍率"
+                  value="1"
+                  onChange={() => undefined}
+                  suffix="×"
+                  disabled
+                  hint="简易模式固定 1×"
                 />
                 <PercentField
                   id="simple-cache-hit-rate"
@@ -179,19 +206,19 @@ export function SimpleMode({
                 />
               </FieldGroup>
             </div>
-          </div>
-        </section>
-      )}
+          )}
+        </div>
+      </section>
 
-      <div className="simple-note">
-        <div className="simple-note__title">已内置的预设口径</div>
+      <details className="simple-note">
+        <summary className="simple-note__title">已内置的预设口径</summary>
         <ul className="simple-note__list">
           {PRESET_ITEMS.map((item) => <li key={item}>{item}</li>)}
         </ul>
         <button type="button" className="linklike simple-note__switch" onClick={onSwitchAdvanced}>
           需要精细调价、混合/精确用量口径或多站独立向导？前往高级模式 →
         </button>
-      </div>
+      </details>
     </>
   )
 }

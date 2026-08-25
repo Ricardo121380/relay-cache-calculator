@@ -7,13 +7,16 @@ import { describeScenarioMode } from './calculator.validation'
 import { useGlassSurface } from '../../hooks/useGlassSurface'
 
 export interface ResultSummaryProps {
+  eyebrow: string
+  stationLabel?: string
+  basisLabel?: string
   result: CalculationResult
   displayDecimals: number
   budgetCny: string
 }
 
-export function ResultSummary({ result, displayDecimals, budgetCny }: ResultSummaryProps) {
-  const glass = useGlassSurface<HTMLDivElement>()
+export function ResultSummary({ eyebrow, stationLabel = '中转站', basisLabel, result, displayDecimals, budgetCny }: ResultSummaryProps) {
+  const glass = useGlassSurface<HTMLElement>()
   const money = (v: string) => formatMoneyCny(v, { decimals: displayDecimals })
   const fmtOpts = { decimals: displayDecimals }
   const savings = d(result.savingsCny)
@@ -21,7 +24,6 @@ export function ResultSummary({ result, displayDecimals, budgetCny }: ResultSumm
   const effectiveUnitPrice = result.currency === 'CNY'
     ? `${formatMoney(result.effectiveInputUnitPrice, fmtOpts)} 元/1M`
     : `$${formatMoney(result.effectiveInputUnitPrice, fmtOpts)}/1M`
-
   const mainValue = result.scenarioMode === 'input-only'
     ? { label: '每 1M 输入成本', value: money(result.inputCostPerMillionCny), unit: '元' }
     : result.scenarioMode === 'mixed-total'
@@ -45,58 +47,77 @@ export function ResultSummary({ result, displayDecimals, budgetCny }: ResultSumm
         { label: '无缓存成本（同口径）', value: money(result.noCacheCostCny) },
       ]
 
-  const hitRate = Math.max(0, Math.min(100, Number(result.cacheShareOfInput) * 100))
+  const composition = [
+    { key: 'normal', label: '普通输入', value: d(result.breakdown.normalInputCostCny) },
+    { key: 'cached', label: '缓存读取', value: d(result.breakdown.cachedReadCostCny) },
+    { key: 'write', label: '缓存写入', value: d(result.breakdown.cacheWriteCostCny) },
+    { key: 'output', label: '输出', value: d(result.breakdown.outputCostCny) },
+  ].filter((part) => !part.value.isZero())
+  const compositionTotal = composition.reduce((total, part) => total.plus(part.value), d(0))
 
   return (
     <div className="result-stack">
-      <div
+      <section
         ref={glass.ref}
-        className="result-hero result-lens glass-surface glass-surface--regular"
+        className="results-hud result-hero result-lens glass-surface glass-surface--regular"
         onPointerMove={glass.onPointerMove}
         onPointerLeave={glass.onPointerLeave}
       >
-        <div className="result-hero__topline">
-          <div className="result-hero__tag">{describeScenarioMode(result.scenarioMode)}</div>
-          <div className="result-hero__multiplier">
-            <span>实际等效倍率</span>
-            <b>{d(result.actualMultiplier).toDecimalPlaces(4).toString()}×</b>
+        <header className="results-hud__header">
+          <div>
+            <p>{eyebrow}</p>
+            <h2>{result.scenarioMode === 'exact-usage' ? '本次调用总成本' : '每 1M 混合 token 成本'}</h2>
+          </div>
+        </header>
+        <div className="hud-hero-result">
+          <div>
+            <span>{stationLabel}</span>
+            <small>{basisLabel || describeScenarioMode(result.scenarioMode)}</small>
+          </div>
+          <strong>{mainValue.value}</strong>
+        </div>
+
+        <div className="hud-metrics">
+          <div>
+            <span>同预算可用量</span>
+            <strong>{budget.totalTokens === null ? '—' : formatCapacityMillions(budget.totalTokens)}</strong>
+            <small>预算 {formatMoneyCny(d(budgetCny || '0'), fmtOpts)}</small>
+          </div>
+          <div>
+            <span>{cacheIncreasesCost ? '缓存增加' : '缓存节省'}</span>
+            <strong>{money(savings.abs().toString())}</strong>
+            <small>{mainValue.label}</small>
           </div>
         </div>
-        <ResultValue big tone="accent" label={mainValue.label} value={mainValue.value} unit={mainValue.unit} />
-        <div
-          className="result-lens__cache"
-          role="meter"
-          aria-label="缓存输入占比"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Number(hitRate.toFixed(1))}
-        >
-          <span className="result-lens__cache-label">缓存输入</span>
-          <span className="result-lens__cache-track" aria-hidden="true">
-            <span style={{ transform: `scaleX(${hitRate / 100})` }} />
-          </span>
-          <b>{hitRate.toFixed(1)}%</b>
+
+        <div className="hud-composition" role="img" aria-label="费用构成">
+          <div className="hud-composition__heading">
+            <span>费用构成</span>
+            <strong>{composition.map((part) => part.label).join(' / ') || '暂无费用'}</strong>
+          </div>
+          <div className="hud-composition__bar" aria-hidden="true">
+            {composition.map((part) => (
+              <i
+                key={part.key}
+                className={`is-${part.key}`}
+                style={{ width: `${compositionTotal.isZero() ? 0 : part.value.div(compositionTotal).mul(100).toNumber()}%` }}
+              />
+            ))}
+          </div>
+          <div className="hud-composition__values">
+            {composition.map((part) => <span key={part.key}>{money(part.value.toString())}</span>)}
+          </div>
         </div>
-        <div className="result-hero__meta">
-          <span className="result-hero__meta-item">Pe 有效输入单价 <b>{effectiveUnitPrice}</b></span>
-          <span className="result-hero__meta-sep" aria-hidden="true">·</span>
-          <span className="result-hero__meta-item">生效倍率 <b>{result.multiplier}</b> ×</span>
-          {result.scenarioMode === 'mixed-total' ? (
-            <>
-              <span className="result-hero__meta-sep" aria-hidden="true">·</span>
-              <span className="result-hero__meta-item">
-                输入占 <b>{formatPercent(d(result.inputShare).mul(100))}</b> / 输出 <b>{formatPercent(d(result.outputShare).mul(100))}</b>（缓存仅作用于输入）
-              </span>
-            </>
-          ) : null}
-          {result.scenarioMode === 'exact-usage' ? (
-            <>
-              <span className="result-hero__meta-sep" aria-hidden="true">·</span>
-              <span className="result-hero__meta-item">参考混合价 <b>{money(result.mixedCostPerMillionCny)}</b></span>
-            </>
-          ) : null}
+
+        <details className="hud-formula">
+          <summary>查看完整公式</summary>
+          <p>Pe = Pi × (1 − 缓存占比) + Pc × 缓存占比；倍率只应用一次。</p>
+        </details>
+        <div className="result-hero__meta sr-only">
+          Pe 有效输入单价 {effectiveUnitPrice} · 生效倍率 {result.multiplier} × ·
+          输入占 {formatPercent(d(result.inputShare).mul(100))} / 输出 {formatPercent(d(result.outputShare).mul(100))}
         </div>
-      </div>
+      </section>
 
       <div className="result-grid">
         {secondaryMetrics.map((m) => (
@@ -158,4 +179,8 @@ export function ResultSummary({ result, displayDecimals, budgetCny }: ResultSumm
       )}
     </div>
   )
+}
+
+function formatCapacityMillions(tokens: string): string {
+  return `${d(tokens).div(1_000_000).toDecimalPlaces(5).toString()}M`
 }

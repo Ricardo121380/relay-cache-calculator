@@ -17,7 +17,9 @@ export function ProgressRail({ steps, currentIndex, label }: ProgressRailProps) 
             className={'progress-rail__step' + (complete ? ' is-complete' : '') + (current ? ' is-current' : '')}
             aria-current={current ? 'step' : undefined}
           >
-            <span className="progress-rail__marker" aria-hidden="true">{complete ? '✓' : index + 1}</span>
+            <span className="progress-rail__marker" aria-hidden="true">
+              {complete ? '✓' : String(index + 1).padStart(2, '0')}
+            </span>
             <span className="progress-rail__label">{step}</span>
           </li>
         )

@@ -1,8 +1,8 @@
 :root {
   color-scheme: light;
-  --color-bg: #eaf0f7;
-  --color-bg-deep: #dce6f1;
-  --color-bg-texture: rgba(33, 55, 82, 0.055);
+  --color-bg: #dbe8f6;
+  --color-bg-deep: #cbdceb;
+  --color-bg-texture: rgba(0, 113, 227, 0.07);
   --color-surface: rgba(251, 253, 255, 0.9);
   --color-surface-soft: #edf3f8;
   --color-surface-tint: #dcefeb;
@@ -12,11 +12,12 @@
   --color-ink-soft: #30445e;
   --color-muted: #52657d;
 
-  --color-accent: #087f78;
-  --color-accent-bright: #0e9189;
-  --color-accent-deep: #05625d;
-  --color-accent-soft: #d9efec;
+  --color-accent: #0071e3;
+  --color-accent-bright: #0785ee;
+  --color-accent-deep: #005ebd;
+  --color-accent-soft: #dcecff;
   --color-accent-on: #ffffff;
+  --color-success: #16a34a;
 
   --glass-heavy: rgba(247, 251, 255, 0.62);
   --glass-regular: rgba(247, 251, 255, 0.7);
@@ -26,8 +27,8 @@
   --glass-edge: rgba(255, 255, 255, 0.72);
   --glass-edge-shade: rgba(47, 69, 96, 0.2);
   --glass-specular: rgba(255, 255, 255, 0.82);
-  --glass-cyan: rgba(64, 209, 196, 0.16);
-  --glass-violet: rgba(104, 119, 235, 0.13);
+  --glass-cyan: rgba(36, 187, 205, 0.2);
+  --glass-violet: rgba(65, 116, 232, 0.18);
   --glass-heavy-blur: 34px;
   --glass-heavy-saturate: 1.75;
   --glass-regular-blur: 26px;

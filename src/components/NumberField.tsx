@@ -3,9 +3,11 @@ import type { ReactNode } from 'react'
 export interface NumberFieldProps {
   id: string
   label: string
+  ariaLabel?: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
+  prefix?: string
   suffix?: string
   hint?: ReactNode
   error?: string
@@ -15,7 +17,7 @@ export interface NumberFieldProps {
 }
 
 export function NumberField({
-  id, label, value, onChange, placeholder, suffix, hint, error, disabled, inputMode = 'decimal', size = 'md',
+  id, label, ariaLabel, value, onChange, placeholder, prefix, suffix, hint, error, disabled, inputMode = 'decimal', size = 'md',
 }: NumberFieldProps) {
   const errId = `${id}-error`
   const hintId = `${id}-hint`
@@ -23,9 +25,11 @@ export function NumberField({
     <div className={`field ${error ? 'field--error' : ''} ${size === 'sm' ? 'field--sm' : ''}`}>
       <label className="field__label" htmlFor={id}>{label}</label>
       <div className="field__control">
+        {prefix ? <span className="field__prefix">{prefix}</span> : null}
         <input
           id={id}
           className="field__input"
+          aria-label={ariaLabel}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
