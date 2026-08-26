@@ -1235,6 +1235,14 @@
   border-color: rgba(216, 231, 248, .08);
 }
 
+:root[data-theme='dark'] .novice-overview .progress-rail__marker,
+:root[data-theme='dark'] .novice-overview .progress-rail__step.is-current .progress-rail__marker,
+:root[data-theme='dark'] .novice-overview .progress-rail__step.is-complete .progress-rail__marker {
+  color: var(--color-accent);
+  background: transparent;
+  box-shadow: none;
+}
+
 :root[data-theme='dark'] .result-boundary-note {
   color: var(--color-ink-soft);
   background: rgba(19, 34, 53, .92);
