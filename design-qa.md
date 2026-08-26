@@ -3,8 +3,7 @@
 ## Visual source of truth
 
 - OpenDesign project: `relay-cache-apple-liquid-glass-codex-official-v1`.
-- Source captures: `/path/to/local-captures/relay-od-source-1280x720.png`, `/path/to/local-captures/relay-od-simple-1280x720.png`, `/path/to/local-captures/relay-od-advanced-1280x720.png`, `/path/to/local-captures/relay-od-source-390x844.png`.
-- Implementation captures: `/path/to/local-captures/relay-final-novice-light-1280x720.png`, `/path/to/local-captures/relay-final-simple-light-1280x720.png`, `/path/to/local-captures/relay-final-advanced-light-1280x720.png`, `/path/to/local-captures/relay-final-novice-light-390x844.png`, `/path/to/local-captures/relay-final-novice-dark-1280x720.png`.
+- Source and implementation captures are generated locally during visual QA and are intentionally not committed.
 - Every visual comparison used the same mode, theme, state, and CSS viewport for the source and implementation.
 
 ## Fidelity result
@@ -32,7 +31,7 @@
 ## Automated verification
 
 - Production build: passed.
-- Vitest: 12 files / 96 tests passed.
+- Vitest: 12 files / 104 tests passed.
 - Business calculation types, formulas, API response types, browser-only API Key path, and state isolation were not changed.
 
 ## Intentional production-only additions
