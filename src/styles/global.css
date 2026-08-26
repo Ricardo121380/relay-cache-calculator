@@ -31,11 +31,12 @@ body {
 
 :root[data-theme='dark'] body {
   background-image:
-    radial-gradient(ellipse 58% 48% at 2% 0%, rgba(43, 174, 163, 0.17), transparent 70%),
-    radial-gradient(ellipse 54% 44% at 98% 20%, rgba(92, 105, 210, 0.14), transparent 72%),
-    radial-gradient(ellipse 52% 42% at 48% 94%, rgba(39, 125, 145, 0.1), transparent 70%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.018), transparent 42%),
-    radial-gradient(var(--color-bg-texture) 0.8px, transparent 0.8px);
+    radial-gradient(ellipse 74% 54% at -8% -4%, rgba(52, 187, 176, 0.14), transparent 68%),
+    radial-gradient(ellipse 68% 58% at 108% 12%, rgba(94, 111, 219, 0.13), transparent 70%),
+    radial-gradient(ellipse 62% 48% at 50% 108%, rgba(42, 132, 157, 0.09), transparent 72%),
+    linear-gradient(155deg, #0b1828 0%, #091421 46%, #0b1422 100%);
+  background-size: auto;
+  background-repeat: no-repeat;
 }
 
 body::before {
@@ -51,7 +52,13 @@ body::before {
   opacity: 0.8;
 }
 
-:root[data-theme='dark'] body::before { opacity: 0.22; }
+:root[data-theme='dark'] body::before {
+  opacity: 0.72;
+  background:
+    radial-gradient(ellipse 44% 30% at 18% 12%, rgba(80, 215, 202, 0.055), transparent 76%),
+    radial-gradient(ellipse 40% 30% at 84% 24%, rgba(112, 126, 232, 0.05), transparent 76%),
+    linear-gradient(124deg, transparent 30%, rgba(183, 215, 241, 0.018) 49%, transparent 66%);
+}
 
 #root {
   position: relative;

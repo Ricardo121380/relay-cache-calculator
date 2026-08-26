@@ -56,11 +56,11 @@
   --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
-  --radius-shell: 28px;
-  --radius-lg: 24px;
-  --radius: 20px;
-  --radius-sm: 14px;
-  --radius-xs: 12px;
+  --radius-shell: 34px;
+  --radius-lg: 30px;
+  --radius: 24px;
+  --radius-sm: 18px;
+  --radius-xs: 15px;
   --radius-pill: 999px;
 
   --shadow-card: 0 1px 1px rgba(28, 47, 70, 0.03), 0 12px 34px rgba(35, 58, 84, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.68);

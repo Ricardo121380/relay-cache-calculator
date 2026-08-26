@@ -20,7 +20,13 @@ export function AdvancedSection({ settings, onUpdate, onClearLocalData }: Advanc
         onClick={() => setOpen((o) => !o)}
       >
         <span>显示与本地数据</span>
-        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <svg
+          className={'card__toggle-icon' + (open ? ' is-open' : '')}
+          viewBox="0 0 20 20"
+          aria-hidden="true"
+        >
+          <path d="m7 5 5 5-5 5" />
+        </svg>
       </button>
 
       {open && (

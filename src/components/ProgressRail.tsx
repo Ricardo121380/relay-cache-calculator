@@ -7,7 +7,7 @@ export interface ProgressRailProps {
 /** 带完成态与当前态的小白流程导航。 */
 export function ProgressRail({ steps, currentIndex, label }: ProgressRailProps) {
   return (
-    <ol className="progress-rail glass-surface glass-surface--regular" aria-label={label}>
+    <ol className="progress-rail" aria-label={label}>
       {steps.map((step, index) => {
         const complete = index < currentIndex
         const current = index === currentIndex

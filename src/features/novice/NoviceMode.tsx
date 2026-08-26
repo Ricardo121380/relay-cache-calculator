@@ -215,27 +215,18 @@ export function NoviceMode({ controller }: NoviceModeProps) {
               <InlineNotice tone="warning">
                 仅使用低权限普通 API Key，不要填写管理员密钥、面板令牌或登录 Cookie。
               </InlineNotice>
-              <details className="security-details">
-                <summary>
-                  <span className="security-details__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24">
-                      <path d="M12 3.2 19 6v5.1c0 4.4-2.8 7.8-7 9.7-4.2-1.9-7-5.3-7-9.7V6l7-2.8Z" />
-                      <path d="M9.3 11.7 11 13.4l3.8-4" />
-                    </svg>
-                  </span>
-                  <span className="security-details__copy">
-                    <span className="security-details__label security-details__label--closed">查看安全原理</span>
-                    <span className="security-details__label security-details__label--open">收起安全原理</span>
-                    <small>了解站点地址与 API Key 如何被处理</small>
-                  </span>
-                  <span className="security-details__chevron" aria-hidden="true">
-                    <svg viewBox="0 0 20 20"><path d="m5.5 7.5 4.5 4.5 4.5-4.5" /></svg>
-                  </span>
-                </summary>
-                <div className="security-details__content">
+              <section className="security-principle" aria-labelledby="security-principle-title">
+                <span className="security-principle__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 3.2 19 6v5.1c0 4.4-2.8 7.8-7 9.7-4.2-1.9-7-5.3-7-9.7V6l7-2.8Z" />
+                    <path d="M9.3 11.7 11 13.4l3.8-4" />
+                  </svg>
+                </span>
+                <div className="security-principle__copy">
+                  <h4 id="security-principle-title">安全原理</h4>
                   <p>站点地址用于读取公开配置；API Key 仅由当前浏览器发往目标站，不会进入本站请求、网址或浏览器存储。</p>
                 </div>
-              </details>
+              </section>
             </section>
           </form>
 
