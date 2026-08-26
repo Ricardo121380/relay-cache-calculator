@@ -22,6 +22,14 @@ describe('NoviceMode', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
     render(<Harness />)
 
+    const securitySummary = screen.getByText('查看安全原理').closest('summary') as HTMLElement
+    const securityDetails = securitySummary.closest('details')
+    expect(securitySummary.tagName).toBe('SUMMARY')
+    expect(securityDetails).not.toHaveAttribute('open')
+    await user.click(screen.getByText('查看安全原理'))
+    expect(securityDetails).toHaveAttribute('open')
+    expect(screen.getByText('收起安全原理')).toBeVisible()
+
     await user.type(screen.getByLabelText('中转站 Base URL'), 'https://relay.example.com')
     await user.type(screen.getByLabelText('普通 API Key（可选）'), 'sk-secret')
     await user.click(screen.getByRole('button', { name: '读取站点数据' }))
