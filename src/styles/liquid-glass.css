@@ -272,6 +272,7 @@
 .mode-dock__controls .segmented { min-width: 0; margin: 0; }
 .mode-dock__controls .segmented:first-child { width: 300px; }
 .mode-dock__controls .segmented:last-child { width: 236px; }
+.mode-dock__controls .segmented:only-child { width: 300px; }
 .mode-dock__divider { width: 0.5px; height: 34px; flex: none; background: var(--color-border-strong); }
 .mode-dock__context {
   max-width: 62ch;
@@ -374,6 +375,7 @@
   line-height: 1.2;
   text-align: center;
   cursor: pointer;
+  white-space: nowrap;
   user-select: none;
   transition: color var(--motion), transform var(--motion-fast), text-shadow var(--motion);
 }
@@ -1933,4 +1935,104 @@
     backdrop-filter: none !important;
     background: var(--color-surface) !important;
   }
+}
+
+/* Billing import, Agent mode and visit counter reuse the existing material stack. */
+.calc__grid--agent {
+  grid-template-columns: minmax(0, 1fr);
+}
+.calc__grid--agent .calc__inputs { max-width: 1120px; margin-inline: auto; width: 100%; }
+
+.novice-manual-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--glass-content);
+  box-shadow: var(--shadow-card);
+}
+.novice-manual-switch div { display: grid; gap: 3px; }
+.novice-manual-switch strong { color: var(--color-ink); font-size: 14px; }
+.novice-manual-switch span { color: var(--color-muted); font-size: 12px; line-height: 1.5; }
+.simple-fixed-rate {
+  min-height: 76px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  background: var(--glass-inset);
+}
+.simple-fixed-rate span,
+.simple-fixed-rate small { color: var(--color-muted); font-size: 11px; }
+.simple-fixed-rate strong { color: var(--color-ink); font-size: 15px; }
+
+.billing-import {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-inset);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+.billing-import__heading,
+.billing-import__file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.billing-import__heading h4 { margin: 0 0 4px; color: var(--color-ink); font-size: 14px; }
+.billing-import__heading p,
+.billing-import__file span { margin: 0; color: var(--color-muted); font-size: 12px; line-height: 1.5; }
+.billing-import__button { flex: none; }
+.billing-import__button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.billing-import__result { display: grid; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border); }
+.billing-import__file { align-items: baseline; }
+.billing-import__file strong { overflow: hidden; color: var(--color-ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.billing-import__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.billing-import__metrics span { display: grid; gap: 4px; padding: 10px 12px; border-radius: var(--radius-xs); background: var(--color-surface); }
+.billing-import__metrics small { color: var(--color-muted); font-size: 10px; }
+.billing-import__metrics b { color: var(--color-ink); font-size: 12px; }
+
+.agent-mode { display: grid; gap: 18px; }
+.agent-mode__actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 18px 0; }
+.agent-mode__actions code {
+  min-width: 0;
+  padding: 10px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  color: var(--color-ink-soft);
+  background: var(--glass-inset);
+  font: 12px/1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.agent-skill-preview {
+  max-height: 560px;
+  margin: 16px 0 0;
+  padding: 18px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-soft);
+  background: var(--glass-inset);
+  font: 12px/1.7 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.visit-counter { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  .novice-manual-switch,
+  .billing-import__heading,
+  .billing-import__file { align-items: stretch; flex-direction: column; }
+  .billing-import__button { width: 100%; justify-content: center; }
+  .billing-import__metrics { grid-template-columns: 1fr; }
+  .agent-mode__actions { align-items: stretch; flex-direction: column; }
+  .agent-mode__actions .btn { justify-content: center; }
 }

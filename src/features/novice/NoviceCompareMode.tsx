@@ -1,21 +1,26 @@
+import { useEffect } from 'react'
 import { InlineNotice } from '../../components/InlineNotice'
 import { NumberField } from '../../components/NumberField'
 import { PercentField } from '../../components/PercentField'
 import { FieldGroup } from '../../components/FieldGroup'
 import { ProgressRail } from '../../components/ProgressRail'
+import { SegmentedControl } from '../../components/SegmentedControl'
 import { d } from '../../utils/decimal'
+import { MAX_COMPARE_STATIONS, MIN_COMPARE_STATIONS } from '../calculator/calculator.settings'
 import type { RelayCapabilityLevel, RelayPlatform } from './relay.types'
 import { NoviceFixedExchangeRate } from './NoviceFixedExchangeRate'
 import { ApiKeyField } from './ApiKeyField'
+import { BillingImportPanel } from './BillingImportPanel'
 import {
-  MAX_NOVICE_COMPARE_STATIONS,
-  MIN_NOVICE_COMPARE_STATIONS,
   type NoviceCompareController,
   type NoviceCompareStation,
+  type NoviceStationReport,
 } from './useNoviceCompareCalculator'
+import { useNoviceCalculator } from './useNoviceCalculator'
 
 export interface NoviceCompareModeProps {
   controller: NoviceCompareController
+  onSwitchManual: () => void
 }
 
 const CAPABILITY_LABELS = {
@@ -31,11 +36,14 @@ const CAPABILITY_STATE_LABELS: Record<RelayCapabilityLevel, string> = {
   manual: '需补充',
 }
 
-export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
+export function NoviceCompareMode({ controller, onSwitchManual }: NoviceCompareModeProps) {
   return (
     <div className="result-stack novice-compare-mode">
       <section className="step-card novice-compare-shared" aria-labelledby="novice-compare-shared-title">
-        <h2 id="novice-compare-shared-title" className="step-card__title">① 设置共同口径</h2>
+        <div className="section-row">
+          <h2 id="novice-compare-shared-title" className="step-card__title">① 设置共同口径</h2>
+          <button type="button" className="btn btn--ghost" onClick={onSwitchManual}>改为手动填写</button>
+        </div>
         <p className="step-card__desc">
           所有站统一按输入:输出 10:1、缓存仅作用于输入 token 计算；每家站的模型、站点倍率和缓存率分别读取。
         </p>
@@ -54,18 +62,18 @@ export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
           label="小白多站对比进度"
           currentIndex={controller.ranking
             ? 2
-            : controller.stations.some((station) => Boolean(station.controller.inspection)) ? 1 : 0}
+            : Object.values(controller.reports).some((report) => Boolean(report.inspection)) ? 1 : 0}
           steps={['共同口径', '逐站读取', '对比结果']}
         />
         <section className="api-key-trust api-key-trust--shared" aria-labelledby="compare-api-key-trust-title">
           <div className="api-key-trust__copy">
-            <p className="step-label">API Key 安全边界</p>
-            <h3 id="compare-api-key-trust-title">每个 API Key 只发送到对应中转站</h3>
+            <p className="step-label">个人用量数据安全边界</p>
+            <h3 id="compare-api-key-trust-title">每家站的数据各自处理、互不复用</h3>
             <div className="api-key-promises">
-              <span>不经过本站服务器</span>
-              <span>不写入浏览器存储</span>
+              <span>API Key 仅发往对应站</span>
+              <span>账单只在浏览器汇总</span>
               <span>各站互不复用</span>
-              <span>请求后立即清空</span>
+              <span>不会持久化</span>
             </div>
           </div>
           <InlineNotice tone="warning">仅使用低权限普通 API Key，不要填写管理员密钥、面板令牌或登录 Cookie。</InlineNotice>
@@ -89,26 +97,30 @@ export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
         <div className="novice-compare-heading">
           <div>
             <h2 id="novice-compare-stations-title" className="step-card__title">② 读取各站数据</h2>
-            <p className="step-card__desc">至少 {MIN_NOVICE_COMPARE_STATIONS} 家、最多 {MAX_NOVICE_COMPARE_STATIONS} 家；完整站点 {controller.readyCount}/{controller.stations.length}。</p>
+            <p className="step-card__desc">至少 {MIN_COMPARE_STATIONS} 家、最多 {MAX_COMPARE_STATIONS} 家；完整站点 {controller.readyCount}/{controller.stations.length}。</p>
           </div>
           <button
             type="button"
             className="btn btn--ghost station-add"
             onClick={controller.addStation}
-            disabled={controller.stations.length >= MAX_NOVICE_COMPARE_STATIONS}
+            disabled={controller.stations.length >= MAX_COMPARE_STATIONS}
           >
-            ＋ 添加站点
+            ＋ 添加站点（{controller.stations.length}/{MAX_COMPARE_STATIONS}）
           </button>
         </div>
 
         <div className="station-grid--multi novice-station-grid">
           {controller.stations.map((station) => (
             <NoviceCompareStationCard
-              key={station.slot}
+              key={station.id}
+              budgetCny={controller.budgetCny}
               station={station}
-              removable={controller.stations.length > MIN_NOVICE_COMPARE_STATIONS}
-              onNameChange={(value) => controller.setStationName(station.slot, value)}
-              onRemove={() => controller.removeStation(station.index)}
+              removable={controller.stations.length > MIN_COMPARE_STATIONS}
+              onNameChange={(value) => controller.setStationName(station.id, value)}
+              onRemove={() => controller.removeStation(station.id)}
+              onReport={controller.reportStation}
+              resetVersion={controller.resetVersion}
+              clearSecretsVersion={controller.clearSecretsVersion}
             />
           ))}
         </div>
@@ -119,13 +131,26 @@ export function NoviceCompareMode({ controller }: NoviceCompareModeProps) {
 
 interface StationCardProps {
   station: NoviceCompareStation
+  budgetCny: string
   removable: boolean
   onNameChange: (value: string) => void
   onRemove: () => void
+  onReport: (id: number, report: NoviceStationReport) => void
+  resetVersion: number
+  clearSecretsVersion: number
 }
 
-function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }: StationCardProps) {
-  const { controller } = station
+function NoviceCompareStationCard({
+  station,
+  budgetCny,
+  removable,
+  onNameChange,
+  onRemove,
+  onReport,
+  resetVersion,
+  clearSecretsVersion,
+}: StationCardProps) {
+  const controller = useNoviceCalculator({ budgetCny })
   const suffix = station.index + 1
   const id = (name: string) => `novice-compare-${name}-${suffix}`
   const {
@@ -133,6 +158,13 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
     setBaseUrl,
     apiKey,
     setApiKey,
+    supplementMethod,
+    setSupplementMethod,
+    billingSummary,
+    billingFileName,
+    billingState,
+    billingError,
+    importBilling,
     connect,
     requestState,
     requestError,
@@ -164,8 +196,30 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
   } = controller
   const ready = controller.result !== null
 
+  useEffect(() => {
+    onReport(station.id, {
+      inspection: controller.inspection,
+      selectedModelName: controller.selectedModelName,
+      calculatorInput: controller.calculatorInput,
+      outcome: controller.outcome,
+      result: controller.result,
+    })
+  }, [controller.inspection, controller.selectedModelName, controller.calculatorInput, controller.outcome, controller.result, onReport, station.id])
+
+  useEffect(() => {
+    if (resetVersion > 0) controller.reset()
+    // resetVersion is an explicit command signal; controller identity is intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetVersion])
+
+  useEffect(() => {
+    if (clearSecretsVersion > 0) controller.clearSecret()
+    // clearSecretsVersion is an explicit command signal; controller identity is intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearSecretsVersion])
+
   return (
-    <article className={`novice-station-card station-panel--s${Math.min(suffix, 5)}`} aria-labelledby={id('title')}>
+    <article className={`novice-station-card station-panel--s${((suffix - 1) % 5) + 1}`} aria-labelledby={id('title')}>
       <header className="novice-station-card__header">
         <span className="station-panel__badge">{suffix}</span>
         <div className="novice-station-card__identity">
@@ -213,16 +267,40 @@ function NoviceCompareStationCard({ station, removable, onNameChange, onRemove }
 
         </FieldGroup>
 
-        <details className="station-api-key-details">
-          <summary>可选：使用该站 API Key</summary>
-          <ApiKeyField
-            id={id('api-key')}
-            label={`站点 ${suffix} 普通 API Key`}
-            value={apiKey}
-            onChange={setApiKey}
-            hint="仅发送至此站，读取后立即清空。"
+        <div className="station-supplement">
+          <SegmentedControl
+            id={id('supplement')}
+            label={`站点 ${suffix} 用量补充方式`}
+            value={supplementMethod}
+            onChange={(value) => setSupplementMethod(value as typeof supplementMethod)}
+            size="compact"
+            material="regular"
+            options={[
+              { value: 'none', label: '公开数据' },
+              { value: 'api-key', label: 'API Key' },
+              { value: 'bill-file', label: '导入账单' },
+            ]}
           />
-        </details>
+          {supplementMethod === 'api-key' ? (
+            <ApiKeyField
+              id={id('api-key')}
+              label={`站点 ${suffix} 普通 API Key`}
+              value={apiKey}
+              onChange={setApiKey}
+              hint="仅发送至此站，读取后立即清空。"
+            />
+          ) : supplementMethod === 'bill-file' ? (
+            <BillingImportPanel
+              id={id('billing-file')}
+              fileName={billingFileName}
+              state={billingState}
+              error={billingError}
+              summary={billingSummary}
+              onImport={importBilling}
+              compact
+            />
+          ) : null}
+        </div>
 
         <button className="btn btn--primary" type="submit" disabled={requestState === 'loading'}>
           {requestState === 'loading' ? `正在读取站点 ${suffix}…` : inspection ? `重新读取站点 ${suffix}` : `读取站点 ${suffix}`}

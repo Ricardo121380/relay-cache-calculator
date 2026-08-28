@@ -23,15 +23,16 @@ describe('NoviceMode', () => {
     render(<Harness />)
 
     expect(screen.getByRole('heading', { name: '安全原理' })).toBeVisible()
-    expect(screen.getByText(/站点地址用于读取公开配置/)).toBeVisible()
+    expect(screen.getByText(/API Key 只发往目标站/)).toBeVisible()
     expect(document.querySelector('.security-principle details')).not.toBeInTheDocument()
     expect(screen.getByLabelText('小白模式设置进度')).not.toHaveClass('glass-surface')
 
     await user.type(screen.getByLabelText('中转站 Base URL'), 'https://relay.example.com')
-    await user.type(screen.getByLabelText('普通 API Key（可选）'), 'sk-secret')
+    await user.click(screen.getByRole('radio', { name: '使用 API Key' }))
+    await user.type(screen.getByLabelText('普通 API Key'), 'sk-secret')
     await user.click(screen.getByRole('button', { name: '读取站点数据' }))
 
-    expect((screen.getByLabelText('普通 API Key（可选）') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('普通 API Key') as HTMLInputElement).value).toBe('')
     expect(setItem).not.toHaveBeenCalled()
     expect(screen.getByText(/缓存读取 input token 占全部 input token/)).toBeInTheDocument()
     expect(screen.getByLabelText('当前计价倍率')).toHaveTextContent('缓存读取倍率 ×0.2')
@@ -74,7 +75,7 @@ describe('NoviceMode', () => {
 
 function Harness() {
   const controller = useNoviceCalculator()
-  return <NoviceMode controller={controller} />
+  return <NoviceMode controller={controller} onSwitchManual={() => undefined} />
 }
 
 function inspection(): RelayInspection {

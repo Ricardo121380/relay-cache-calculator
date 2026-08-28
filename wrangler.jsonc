@@ -4,6 +4,14 @@
   "compatibility_date": "2026-08-23",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "VISITS_DB",
+      "database_name": "relay-cache-analytics",
+      "database_id": "ea44c84c-8be1-4d9e-8e9f-8c8d63cb63e0",
+      "migrations_dir": "migrations"
+    }
+  ],
   "observability": {
     "enabled": true
   }

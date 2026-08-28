@@ -3,7 +3,7 @@ import { PercentField } from '../../components/PercentField'
 import { SegmentedControl } from '../../components/SegmentedControl'
 import type { ModelPrice } from './calculator.types'
 import { describeCacheRateBasis } from './calculator.validation'
-import { MAX_STATIONS, type ModeInputSettings, type StationSettings } from './calculator.settings'
+import { MAX_COMPARE_STATIONS, type ModeInputSettings, type StationSettings } from './calculator.settings'
 
 export interface AdvancedModeProps {
   compare: boolean
@@ -114,7 +114,7 @@ export function AdvancedMode({
             suffix="CNY / USD"
             disabled={input.currency === 'CNY'}
             error={errors.exchangeRate}
-            hint={input.currency === 'CNY' ? '人民币单价无需换算' : '简易与高级模式可编辑'}
+            hint={input.currency === 'CNY' ? '人民币单价无需换算' : '高级模式可编辑'}
           />
         </div>
 
@@ -254,7 +254,7 @@ export function AdvancedMode({
             <p className="step-label">02 · 中转站参数</p>
             <h2 id="advanced-stations-title">{compare ? `${stations.length} 站实时对比` : '单站计算'}</h2>
           </div>
-          {compare && stations.length < MAX_STATIONS ? <button type="button" className="btn btn--ghost" onClick={onAddStation}>添加中转站</button> : null}
+          {compare && stations.length < MAX_COMPARE_STATIONS ? <button type="button" className="btn btn--ghost" onClick={onAddStation}>添加中转站（{stations.length}/{MAX_COMPARE_STATIONS}）</button> : null}
         </div>
 
         <div className="advanced-station-list">

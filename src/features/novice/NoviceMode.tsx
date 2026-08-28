@@ -3,6 +3,7 @@ import { NumberField } from '../../components/NumberField'
 import { PercentField } from '../../components/PercentField'
 import { FieldGroup } from '../../components/FieldGroup'
 import { ProgressRail } from '../../components/ProgressRail'
+import { SegmentedControl } from '../../components/SegmentedControl'
 import { d } from '../../utils/decimal'
 import type {
   RelayCapabilityLevel,
@@ -12,10 +13,12 @@ import type {
 } from './relay.types'
 import { NoviceFixedExchangeRate } from './NoviceFixedExchangeRate'
 import { ApiKeyField } from './ApiKeyField'
+import { BillingImportPanel } from './BillingImportPanel'
 import type { NoviceController } from './useNoviceCalculator'
 
 export interface NoviceModeProps {
   controller: NoviceController
+  onSwitchManual: () => void
 }
 
 const SOURCE_LABELS: Record<RelayDataSource, string> = {
@@ -30,6 +33,7 @@ const SOURCE_LABELS: Record<RelayDataSource, string> = {
   'sub2api-usage': 'Sub2API Key 用量',
   'krill-pricing': 'Krill AI 公开价格',
   'krill-channel-status': 'Krill AI 渠道状态',
+  'billing-import': '浏览器本地账单',
 }
 
 const ENDPOINT_LABELS: Record<RelayEndpointStatus['endpoint'], string> = {
@@ -70,12 +74,19 @@ const CAPABILITY_STATE_LABELS: Record<RelayCapabilityLevel, string> = {
   manual: '需手动补充',
 }
 
-export function NoviceMode({ controller }: NoviceModeProps) {
+export function NoviceMode({ controller, onSwitchManual }: NoviceModeProps) {
   const {
     baseUrl,
     setBaseUrl,
     apiKey,
     setApiKey,
+    supplementMethod,
+    setSupplementMethod,
+    billingSummary,
+    billingFileName,
+    billingState,
+    billingError,
+    importBilling,
     connect,
     requestState,
     requestError,
@@ -153,6 +164,7 @@ export function NoviceMode({ controller }: NoviceModeProps) {
             <p className="step-label">02 · 站点连接</p>
             <h2 id="novice-connect-title">连接一个中转站</h2>
           </div>
+          <button type="button" className="btn btn--ghost" onClick={onSwitchManual}>改为手动填写</button>
         </div>
 
         <section className="step-card novice-connector-card">
@@ -196,35 +208,59 @@ export function NoviceMode({ controller }: NoviceModeProps) {
 
             <section className="api-key-trust" aria-labelledby="api-key-trust-title">
               <div className="api-key-trust__copy">
-                <p className="step-label">可选 · 个人缓存数据</p>
-                <h3 id="api-key-trust-title">API Key 只发送到你填写的中转站</h3>
-                <div className="api-key-promises" aria-label="API Key 安全承诺">
-                  <span>不经过本站服务器</span>
-                  <span>不写入浏览器存储</span>
-                  <span>请求后立即清空</span>
-                </div>
+                <p className="step-label">可选 · 补充个人用量数据</p>
+                <h3 id="api-key-trust-title">选择一种补充方式</h3>
+                <p>公开配置不足时，可使用普通 API Key 读取近期用量，或导入站点导出的账单。</p>
               </div>
-              <ApiKeyField
-                id="novice-api-key"
-                label="普通 API Key（可选）"
-                value={apiKey}
-                onChange={setApiKey}
-                placeholder="sk-…"
-                hint="用于浏览器直连该站的只读接口。"
+              <SegmentedControl
+                id="novice-supplement-method"
+                label="个人用量补充方式"
+                value={supplementMethod}
+                onChange={(value) => setSupplementMethod(value as typeof supplementMethod)}
+                size="compact"
+                material="regular"
+                options={[
+                  { value: 'none', label: '暂不补充' },
+                  { value: 'api-key', label: '使用 API Key' },
+                  { value: 'bill-file', label: '导入账单' },
+                ]}
               />
-              <InlineNotice tone="warning">
-                仅使用低权限普通 API Key，不要填写管理员密钥、面板令牌或登录 Cookie。
-              </InlineNotice>
+              {supplementMethod === 'api-key' ? (
+                <>
+                  <div className="api-key-promises" aria-label="API Key 安全承诺">
+                    <span>不经过本站服务器</span>
+                    <span>不写入浏览器存储</span>
+                    <span>请求后立即清空</span>
+                  </div>
+                  <ApiKeyField
+                    id="novice-api-key"
+                    label="普通 API Key"
+                    value={apiKey}
+                    onChange={setApiKey}
+                    placeholder="sk-…"
+                    hint="只由当前浏览器发往你填写的中转站。"
+                  />
+                  <InlineNotice tone="warning">仅使用低权限普通 API Key，不要填写管理员密钥、面板令牌或登录 Cookie。</InlineNotice>
+                </>
+              ) : supplementMethod === 'bill-file' ? (
+                <BillingImportPanel
+                  id="novice-billing-file"
+                  fileName={billingFileName}
+                  state={billingState}
+                  error={billingError}
+                  summary={billingSummary}
+                  onImport={importBilling}
+                />
+              ) : (
+                <p className="field__hint">只读取目标站公开提供的数据；缺失项可在结果配置区手动补充。</p>
+              )}
               <section className="security-principle" aria-labelledby="security-principle-title">
                 <span className="security-principle__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M12 3.2 19 6v5.1c0 4.4-2.8 7.8-7 9.7-4.2-1.9-7-5.3-7-9.7V6l7-2.8Z" />
-                    <path d="M9.3 11.7 11 13.4l3.8-4" />
-                  </svg>
+                  <svg viewBox="0 0 24 24"><path d="M12 3.2 19 6v5.1c0 4.4-2.8 7.8-7 9.7-4.2-1.9-7-5.3-7-9.7V6l7-2.8Z" /><path d="M9.3 11.7 11 13.4l3.8-4" /></svg>
                 </span>
                 <div className="security-principle__copy">
                   <h4 id="security-principle-title">安全原理</h4>
-                  <p>站点地址用于读取公开配置；API Key 仅由当前浏览器发往目标站，不会进入本站请求、网址或浏览器存储。</p>
+                  <p>API Key 只发往目标站；账单只在浏览器本地汇总。两者都不会进入本站服务器或浏览器存储。</p>
                 </div>
               </section>
             </section>

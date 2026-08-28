@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS visit_daily (
+  day TEXT PRIMARY KEY,
+  sessions INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);

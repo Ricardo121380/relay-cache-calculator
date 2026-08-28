@@ -2,13 +2,13 @@ import { NumberField } from '../../components/NumberField'
 import { PercentField } from '../../components/PercentField'
 import { FieldGroup } from '../../components/FieldGroup'
 import type { ModelPrice } from './calculator.types'
-import type { ModeInputSettings, StationSettings } from './calculator.settings'
+import { MAX_COMPARE_STATIONS, type ModeInputSettings, type StationSettings } from './calculator.settings'
 
 export interface SimpleModeProps {
   compare: boolean
   input: ModeInputSettings
   models: ModelPrice[]
-  /** 简易对比模式下为多家中转站；单站为 [station] */
+  /** 小白手动路径的多家中转站；单站为 [station] */
   stations: StationSettings[]
   onSelectModel: (m: ModelPrice) => void
   onUpdateInput: (patch: Partial<ModeInputSettings>) => void
@@ -21,14 +21,14 @@ export interface SimpleModeProps {
 }
 
 const PRESET_ITEMS = [
-  'GPT-5.6 Sol · 美元价 7.2 折算',
+  'GPT-5.6 Sol · 固定按 1 USD = ¥7.20 折算',
   '基础价 × 倍率（倍率即生效）',
   '缓存价取模型预设（如 4 / 0.4 / 20）',
   '命中率按输入 token 计',
   '编程口径 10:1 · 输入约 91%',
 ] as const
 
-/** 简易模式：只填模型、倍率、缓存率，其余全部内置预设 */
+/** 小白模式的手动路径：只填模型、倍率、缓存率。 */
 export function SimpleMode({
   compare,
   input,
@@ -83,16 +83,11 @@ export function SimpleMode({
             hint="实时换算可用 token"
             error={errors.budgetCny ?? errors.budget}
           />
-          <NumberField
-            id="simple-exchange-rate"
-            label="汇率"
-            ariaLabel="美元兑人民币汇率"
-            value={input.exchangeRateToCny}
-            onChange={(value) => onUpdateInput({ exchangeRateToCny: value })}
-            suffix="CNY / USD"
-            hint="简易与高级模式可编辑"
-            error={errors.exchangeRateToCny}
-          />
+          <div className="simple-fixed-rate" aria-label="小白模式固定汇率">
+            <span>固定汇率</span>
+            <strong>1 USD = ¥7.20</strong>
+            <small>小白模式统一换算口径</small>
+          </div>
         </div>
 
         <div className="simple-price-snapshot" aria-label="当前价格快照">
@@ -111,8 +106,8 @@ export function SimpleMode({
             <p className="step-label">02 · 中转站参数</p>
             <h2 id="simple-stations-title">{compare ? '各中转站' : '单站计算'}</h2>
           </div>
-          {compare && stations.length < 5 ? (
-            <button type="button" className="btn btn--ghost simple-add" onClick={onAddStation}>添加中转站</button>
+          {compare && stations.length < MAX_COMPARE_STATIONS ? (
+            <button type="button" className="btn btn--ghost simple-add" onClick={onAddStation}>添加中转站（{stations.length}/{MAX_COMPARE_STATIONS}）</button>
           ) : null}
         </div>
 
@@ -198,7 +193,7 @@ export function SimpleMode({
           {PRESET_ITEMS.map((item) => <li key={item}>{item}</li>)}
         </ul>
         <button type="button" className="linklike simple-note__switch" onClick={onSwitchAdvanced}>
-          需要精细调价、混合/精确用量口径或多站独立向导？前往高级模式 →
+          需要精细调价、混合/精确用量口径？前往高级模式 →
         </button>
       </details>
     </>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ModelPrice } from '../features/calculator/calculator.types'
 import {
   createDefaultStation,
-  MAX_STATIONS,
+  MAX_COMPARE_STATIONS,
   MIN_COMPARE_STATIONS,
   type CalcMode,
   type CalculatorSettings,
@@ -59,11 +59,79 @@ export function usePersistedSettings() {
 
   const addStation = useCallback(() => {
     setSettings((s) => {
-      if (s.compare.stations.length >= MAX_STATIONS) return s
+      if (s.compare.stations.length >= MAX_COMPARE_STATIONS) return s
       const base = s.compare.stations[0] ?? createDefaultStation()
       const next: StationSettings = { ...base, name: '中转站 ' + (s.compare.stations.length + 1) }
       return { ...s, compare: { ...s.compare, stations: [...s.compare.stations, next] } }
     })
+  }, [])
+
+  const updateManualInput = useCallback((mode: CalcMode, patch: Partial<ModeInputSettings>) => {
+    setSettings((s) => mode === 'compare'
+      ? { ...s, noviceManual: { ...s.noviceManual, compare: { ...s.noviceManual.compare, input: { ...s.noviceManual.compare.input, ...patch } } } }
+      : { ...s, noviceManual: { ...s.noviceManual, single: { ...s.noviceManual.single, input: { ...s.noviceManual.single.input, ...patch } } } },
+    )
+  }, [])
+
+  const updateManualSingleStation = useCallback((patch: Partial<StationSettings>) => {
+    setSettings((s) => ({
+      ...s,
+      noviceManual: {
+        ...s.noviceManual,
+        single: { ...s.noviceManual.single, station: { ...s.noviceManual.single.station, ...patch } },
+      },
+    }))
+  }, [])
+
+  const updateManualStation = useCallback((index: number, patch: Partial<StationSettings>) => {
+    setSettings((s) => ({
+      ...s,
+      noviceManual: {
+        ...s.noviceManual,
+        compare: {
+          ...s.noviceManual.compare,
+          stations: s.noviceManual.compare.stations.map((station, i) => i === index ? { ...station, ...patch } : station),
+        },
+      },
+    }))
+  }, [])
+
+  const addManualStation = useCallback(() => {
+    setSettings((s) => {
+      const stations = s.noviceManual.compare.stations
+      if (stations.length >= MAX_COMPARE_STATIONS) return s
+      const base = stations[0] ?? createDefaultStation()
+      const next = { ...base, name: `中转站 ${stations.length + 1}` }
+      return {
+        ...s,
+        noviceManual: {
+          ...s.noviceManual,
+          compare: { ...s.noviceManual.compare, stations: [...stations, next] },
+        },
+      }
+    })
+  }, [])
+
+  const removeManualStation = useCallback((index: number) => {
+    setSettings((s) => {
+      const stations = s.noviceManual.compare.stations
+      if (stations.length <= MIN_COMPARE_STATIONS) return s
+      return {
+        ...s,
+        noviceManual: {
+          ...s.noviceManual,
+          compare: { ...s.noviceManual.compare, stations: stations.filter((_, i) => i !== index) },
+        },
+      }
+    })
+  }, [])
+
+  const selectManualModel = useCallback((mode: CalcMode, model: ModelPrice) => {
+    const patch = applyModelPreset(model)
+    setSettings((s) => mode === 'compare'
+      ? { ...s, noviceManual: { ...s.noviceManual, compare: { ...s.noviceManual.compare, input: { ...s.noviceManual.compare.input, ...patch } } } }
+      : { ...s, noviceManual: { ...s.noviceManual, single: { ...s.noviceManual.single, input: { ...s.noviceManual.single.input, ...patch } } } },
+    )
   }, [])
 
   const removeStation = useCallback((index: number) => {
@@ -113,5 +181,7 @@ export function usePersistedSettings() {
   return {
     settings, update, updateInput, updateSingleStation, updateStation, updateExact, setMode,
     addStation, removeStation, selectModel, selectCustomModel, reset, clearLocalData,
+    updateManualInput, updateManualSingleStation, updateManualStation,
+    addManualStation, removeManualStation, selectManualModel,
   }
 }

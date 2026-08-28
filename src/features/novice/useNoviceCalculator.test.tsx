@@ -23,6 +23,7 @@ describe('useNoviceCalculator', () => {
     const { result } = renderHook(() => useNoviceCalculator())
 
     act(() => {
+      result.current.setSupplementMethod('api-key')
       result.current.setBaseUrl('https://relay.example.com')
       result.current.setApiKey('sk-one-time')
     })
@@ -100,6 +101,7 @@ describe('useNoviceCalculator', () => {
           }))))
     const { result } = renderHook(() => useNoviceCalculator())
     act(() => {
+      result.current.setSupplementMethod('api-key')
       result.current.setBaseUrl('https://relay.example.com')
       result.current.setApiKey('sk-local-only')
     })
@@ -150,6 +152,7 @@ describe('useNoviceCalculator', () => {
     }))
     const { result } = renderHook(() => useNoviceCalculator())
     act(() => {
+      result.current.setSupplementMethod('api-key')
       result.current.setBaseUrl('https://relay.example.com')
       result.current.setApiKey('sk-local-only')
     })

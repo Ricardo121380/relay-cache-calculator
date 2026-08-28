@@ -1,7 +1,7 @@
 import { PercentField } from '../../components/PercentField'
 import { StationRelayPanel } from './StationRelayPanel'
 import { describeCacheRateBasis } from './calculator.validation'
-import { MAX_STATIONS, type CalculatorSettings, type StationSettings } from './calculator.settings'
+import { MAX_COMPARE_STATIONS, type CalculatorSettings, type StationSettings } from './calculator.settings'
 
 export interface CompareStationsProps {
   settings: CalculatorSettings
@@ -20,7 +20,7 @@ export function CompareStations({ settings, onUpdateStation, onAddStation, onRem
   return (
     <section className="step-card step-card--compare" aria-labelledby="step-stations-title">
       <h2 id="step-stations-title" className="step-card__title">{'各站配置（' + stations.length + ' 家）'}</h2>
-      <p className="step-card__desc">{'倍率、缓存口径与缓存率逐家填写；模型价格与使用结构为本对比方案共用。最多 ' + MAX_STATIONS + ' 家。'}</p>
+      <p className="step-card__desc">{'倍率、缓存口径与缓存率逐家填写；模型价格与使用结构为本对比方案共用。最多 ' + MAX_COMPARE_STATIONS + ' 家。'}</p>
 
       <div className="station-grid--multi">
         {stations.map((station, i) => (
@@ -46,9 +46,9 @@ export function CompareStations({ settings, onUpdateStation, onAddStation, onRem
           </div>
         ))}
       </div>
-      {stations.length < MAX_STATIONS && (
+      {stations.length < MAX_COMPARE_STATIONS && (
         <button type="button" className="btn btn--ghost station-add" onClick={onAddStation}>
-          {'+ 添加中转站（' + stations.length + '/' + MAX_STATIONS + '）'}
+          {'+ 添加中转站（' + stations.length + '/' + MAX_COMPARE_STATIONS + '）'}
         </button>
       )}
 

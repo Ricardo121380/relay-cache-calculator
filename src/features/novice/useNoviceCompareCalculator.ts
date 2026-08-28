@@ -1,114 +1,132 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import type { CalculationResult, CalculatorInput, CalcOutcome } from '../calculator/calculator.types'
+import { MAX_COMPARE_STATIONS, MIN_COMPARE_STATIONS } from '../calculator/calculator.settings'
 import { summarizeRanking, type RankingSummary, type StationCalc } from '../calculator/calculator.compare'
-import {
-  NOVICE_EXCHANGE_RATE_TO_CNY,
-  useNoviceCalculator,
-  type NoviceController,
-} from './useNoviceCalculator'
+import type { RelayInspection } from './relay.types'
+import { NOVICE_EXCHANGE_RATE_TO_CNY } from './useNoviceCalculator'
 
 const DEFAULT_BUDGET = '10'
-export const MIN_NOVICE_COMPARE_STATIONS = 2
-export const MAX_NOVICE_COMPARE_STATIONS = 5
 
 export interface NoviceCompareStation {
-  slot: number
+  id: number
   index: number
   name: string
-  controller: NoviceController
+}
+
+export interface NoviceStationReport {
+  inspection: RelayInspection | null
+  selectedModelName: string
+  calculatorInput: CalculatorInput | null
+  outcome: CalcOutcome | null
+  result: CalculationResult | null
+}
+
+interface StationMeta {
+  id: number
+  customName: string
 }
 
 export function useNoviceCompareCalculator() {
+  const nextId = useRef(2)
   const [budgetCny, setBudgetCny] = useState(DEFAULT_BUDGET)
-  const [activeSlots, setActiveSlots] = useState<number[]>([0, 1])
-  const [customNames, setCustomNames] = useState<string[]>(() => Array(MAX_NOVICE_COMPARE_STATIONS).fill(''))
+  const [stationMeta, setStationMeta] = useState<StationMeta[]>([
+    { id: 0, customName: '' },
+    { id: 1, customName: '' },
+  ])
+  const [reports, setReports] = useState<Record<number, NoviceStationReport>>({})
+  const [resetVersion, setResetVersion] = useState(0)
+  const [clearSecretsVersion, setClearSecretsVersion] = useState(0)
 
-  // 固定调用五次 Hook，避免动态站点数量破坏 Hooks 调用顺序；未启用槽位不发请求。
-  const station0 = useNoviceCalculator({ budgetCny })
-  const station1 = useNoviceCalculator({ budgetCny })
-  const station2 = useNoviceCalculator({ budgetCny })
-  const station3 = useNoviceCalculator({ budgetCny })
-  const station4 = useNoviceCalculator({ budgetCny })
-  const controllers = [station0, station1, station2, station3, station4]
+  const reportStation = useCallback((id: number, report: NoviceStationReport | null) => {
+    setReports((current) => {
+      if (report === null) {
+        if (!(id in current)) return current
+        const next = { ...current }
+        delete next[id]
+        return next
+      }
+      return { ...current, [id]: report }
+    })
+  }, [])
 
-  const stations: NoviceCompareStation[] = activeSlots.map((slot, index) => {
-    const controller = controllers[slot]
+  const stations = useMemo<NoviceCompareStation[]>(() => stationMeta.map((meta, index) => {
+    const report = reports[meta.id]
+    const inspection = report?.inspection
     return {
-      slot,
+      id: meta.id,
       index,
-      name: customNames[slot].trim()
-        || controller.inspection?.stationName
-        || hostLabel(controller.inspection?.baseUrl ?? controller.baseUrl)
+      name: meta.customName.trim()
+        || inspection?.stationName
+        || hostLabel(inspection?.baseUrl ?? '')
         || `中转站 ${index + 1}`,
-      controller,
     }
-  })
+  }), [reports, stationMeta])
 
-  const outcomes: StationCalc[] = stations.flatMap((station) => {
-    const { calculatorInput, outcome, result } = station.controller
-    if (!calculatorInput || !outcome) return []
-    return [{ index: station.index, input: calculatorInput, outcome, result }]
-  })
+  const outcomes = useMemo<StationCalc[]>(() => stations.flatMap((station) => {
+    const report = reports[station.id]
+    if (!report?.calculatorInput || !report.outcome) return []
+    return [{
+      index: station.index,
+      input: report.calculatorInput,
+      outcome: report.outcome,
+      result: report.result,
+    }]
+  }), [reports, stations])
+
   const readyCount = outcomes.filter((station) => station.result !== null).length
-  const ranking: RankingSummary | null = readyCount >= MIN_NOVICE_COMPARE_STATIONS
-    ? summarizeRanking(outcomes)
-    : null
+  const ranking: RankingSummary | null = readyCount >= MIN_COMPARE_STATIONS ? summarizeRanking(outcomes) : null
   const stationNames = stations.map((station) => {
-    const model = station.controller.selectedModelName
+    const model = reports[station.id]?.selectedModelName
     return model ? `${station.name} · ${model}` : station.name
   })
   const selectedModels = new Set(
-    stations
-      .map((station) => normalizeModelName(station.controller.selectedModelName))
-      .filter(Boolean),
+    stations.map((station) => normalizeModelName(reports[station.id]?.selectedModelName ?? '')).filter(Boolean),
   )
-  const modelMismatch = selectedModels.size > 1
 
-  const setStationName = useCallback((slot: number, value: string) => {
-    setCustomNames((current) => current.map((name, index) => index === slot ? value : name))
+  const setStationName = useCallback((id: number, value: string) => {
+    setStationMeta((current) => current.map((station) => station.id === id ? { ...station, customName: value } : station))
   }, [])
 
-  const addStation = () => {
-    if (activeSlots.length >= MAX_NOVICE_COMPARE_STATIONS) return
-    const nextSlot = Array.from({ length: MAX_NOVICE_COMPARE_STATIONS }, (_, index) => index)
-      .find((slot) => !activeSlots.includes(slot))
-    if (nextSlot === undefined) return
-    controllers[nextSlot].reset()
-    setActiveSlots([...activeSlots, nextSlot])
-  }
+  const addStation = useCallback(() => {
+    setStationMeta((current) => current.length >= MAX_COMPARE_STATIONS
+      ? current
+      : [...current, { id: nextId.current++, customName: '' }])
+  }, [])
 
-  const removeStation = (index: number) => {
-    if (activeSlots.length <= MIN_NOVICE_COMPARE_STATIONS) return
-    const slot = activeSlots[index]
-    if (slot === undefined) return
-    controllers[slot].reset()
-    setCustomNames((names) => names.map((name, nameIndex) => nameIndex === slot ? '' : name))
-    setActiveSlots(activeSlots.filter((_, currentIndex) => currentIndex !== index))
-  }
+  const removeStation = useCallback((id: number) => {
+    setStationMeta((current) => current.length <= MIN_COMPARE_STATIONS
+      ? current
+      : current.filter((station) => station.id !== id))
+    reportStation(id, null)
+  }, [reportStation])
 
-  const clearSecrets = () => {
-    controllers.forEach((controller) => controller.clearSecret())
-  }
+  const clearSecrets = useCallback(() => setClearSecretsVersion((version) => version + 1), [])
 
-  const reset = () => {
-    controllers.forEach((controller) => controller.reset())
+  const reset = useCallback(() => {
+    nextId.current = 2
     setBudgetCny(DEFAULT_BUDGET)
-    setActiveSlots([0, 1])
-    setCustomNames(Array(MAX_NOVICE_COMPARE_STATIONS).fill(''))
-  }
+    setStationMeta([{ id: 0, customName: '' }, { id: 1, customName: '' }])
+    setReports({})
+    setResetVersion((version) => version + 1)
+  }, [])
 
   return {
     exchangeRateToCny: NOVICE_EXCHANGE_RATE_TO_CNY,
     budgetCny,
     setBudgetCny,
     stations,
+    reports,
     stationNames,
     outcomes,
     ranking,
     readyCount,
-    modelMismatch,
+    modelMismatch: selectedModels.size > 1,
     setStationName,
     addStation,
     removeStation,
+    reportStation,
+    resetVersion,
+    clearSecretsVersion,
     clearSecrets,
     reset,
   }

@@ -1,73 +1,35 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { applySimplePresets, createDefaultSettings, loadSettings, STORAGE_KEY } from './calculator.settings'
+import { createDefaultSettings, loadSettings, MAX_COMPARE_STATIONS, STORAGE_KEY } from './calculator.settings'
 
-describe('loadSettings', () => {
+describe('calculator settings v6', () => {
   beforeEach(() => localStorage.clear())
 
-  it('修复损坏的 v5 嵌套设置并保留合法字段', () => {
+  it('v5 迁移到小白手动路径时只应用一次综合倍率', () => {
+    const legacy = createDefaultSettings()
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...legacy,
       version: 5,
-      mode: 'compare',
-      displayDecimals: 99,
-      single: { station: null, input: { exactUsage: null } },
-      compare: {
-        stations: [{ name: 'A 站', modelMultiplier: 2 }, null],
-        input: { currency: 'USD', budgetCny: 10, exactUsage: { outputTokens: '123' } },
-      },
+      noviceManual: undefined,
+      single: { ...legacy.single, station: { ...legacy.single.station, modelMultiplier: '0.5', groupMultiplier: '0.2' } },
     }))
 
-    const settings = loadSettings()
-    expect(settings.mode).toBe('compare')
-    expect(settings.displayDecimals).toBe(4)
-    expect(settings.compare.stations).toHaveLength(2)
-    expect(settings.compare.stations[0].name).toBe('A 站')
-    expect(settings.compare.stations[0].modelMultiplier).toBe('1.2')
-    expect(settings.compare.input.currency).toBe('USD')
-    expect(settings.compare.input.budgetCny).toBe('10')
-    expect(settings.compare.input.exactUsage.outputTokens).toBe('123')
-    expect(settings.single.input.exactUsage.normalInputTokens).toBe('')
+    const migrated = loadSettings()
+    expect(migrated.version).toBe(6)
+    expect(migrated.noviceManual.single.station.modelMultiplier).toBe('0.1')
+    expect(migrated.noviceManual.single.station.groupMultiplier).toBe('1')
+    expect(migrated.noviceManual.single.input.inputRatio).toBe('10')
+    expect(migrated.noviceManual.single.input.outputRatio).toBe('1')
   })
 
-  it('v5 缺失 uiMode 时默认简易模式，advanced 保留', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 5, uiMode: 'advanced' }))
-    expect(loadSettings().uiMode).toBe('advanced')
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 5 }))
-    expect(loadSettings().uiMode).toBe('simple')
-  })
-
-  it('默认设置：GPT-5.6 Sol + 编程混合 10:1', () => {
-    const s = createDefaultSettings()
-    expect(s.single.input.selectedModelId).toBe('gpt-5-6-sol')
-    expect(s.single.input.currency).toBe('USD')
-    expect(s.single.input.scenarioMode).toBe('mixed-total')
-    expect(s.single.input.inputRatio).toBe('10')
-    expect(s.single.input.outputRatio).toBe('1')
-  })
-
-  it('applySimplePresets 重置为默认模型 + 编程口径 + 基础价×倍率 + 直接单价', () => {
-    const s = createDefaultSettings()
-    s.single.station.pricingMode = 'final-unit-price'
-    s.single.station.groupMultiplier = '2'
-    s.single.station.cacheRateBasis = 'total-tokens'
-    s.single.input.scenarioMode = 'exact-usage'
-    s.single.input.cachePriceMode = 'coefficient'
-    const out = applySimplePresets(s)
-    expect(out.uiMode).toBe('simple')
-    expect(out.single.station.pricingMode).toBe('base-times-multiplier')
-    expect(out.single.station.groupMultiplier).toBe('1')
-    expect(out.single.station.cacheRateBasis).toBe('input-tokens')
-    expect(out.single.input.selectedModelId).toBe('gpt-5-6-sol')
-    expect(out.single.input.scenarioMode).toBe('mixed-total')
-    expect(out.single.input.inputRatio).toBe('10')
-    expect(out.single.input.outputRatio).toBe('1')
-    expect(out.single.input.cachePriceMode).toBe('direct')
-    // 对比模式同样重置每家
-    const sc = createDefaultSettings()
-    sc.mode = 'compare'
-    sc.compare.stations[1].pricingMode = 'final-unit-price'
-    const outc = applySimplePresets(sc)
-    expect(outc.compare.stations[1].pricingMode).toBe('base-times-multiplier')
-    expect(outc.compare.input.scenarioMode).toBe('mixed-total')
-    expect(outc.compare.input.selectedModelId).toBe('gpt-5-6-sol')
+  it('恢复设置时最多保留 10 家', () => {
+    const settings = createDefaultSettings()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...settings,
+      compare: {
+        ...settings.compare,
+        stations: Array.from({ length: 12 }, (_, index) => ({ ...settings.compare.stations[0], name: `站点 ${index + 1}` })),
+      },
+    }))
+    expect(loadSettings().compare.stations).toHaveLength(MAX_COMPARE_STATIONS)
   })
 })

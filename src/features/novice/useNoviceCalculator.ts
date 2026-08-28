@@ -10,6 +10,9 @@ import type {
 } from '../calculator/calculator.types'
 import { inspectRelay } from './relay.client'
 import { inspectRelayCredentials, mergeCredentialData } from './relay.adapters'
+import { analyzeBillingFile } from './billing.client'
+import type { BillingImportSummary } from './billing.types'
+import { buildRelayCapabilities } from './relay.capabilities'
 import type {
   RelayCacheStat,
   RelayGroup,
@@ -19,6 +22,7 @@ import type {
 
 export type NoviceRequestState = 'idle' | 'loading' | 'success' | 'error'
 export type NoviceCacheRateMode = 'automatic' | 'manual' | 'missing'
+export type NoviceSupplementMethod = 'none' | 'api-key' | 'bill-file'
 
 export interface EffectiveRelayRatios {
   modelRatio: string | null
@@ -49,6 +53,11 @@ export interface NoviceCalculatorOptions {
 export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL)
   const [apiKey, setApiKey] = useState('')
+  const [supplementMethod, setSupplementMethodState] = useState<NoviceSupplementMethod>('none')
+  const [billingSummary, setBillingSummary] = useState<BillingImportSummary | null>(null)
+  const [billingFileName, setBillingFileName] = useState('')
+  const [billingState, setBillingState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [billingError, setBillingError] = useState<string | null>(null)
   const [inspection, setInspection] = useState<RelayInspection | null>(null)
   const [requestState, setRequestState] = useState<NoviceRequestState>('idle')
   const [requestError, setRequestError] = useState<string | null>(null)
@@ -74,6 +83,18 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
   }, [])
 
   const clearSecret = useCallback(() => setApiKey(''), [])
+  const clearBilling = useCallback(() => {
+    setBillingSummary(null)
+    setBillingFileName('')
+    setBillingState('idle')
+    setBillingError(null)
+  }, [])
+
+  const setSupplementMethod = useCallback((method: NoviceSupplementMethod) => {
+    setSupplementMethodState(method)
+    if (method !== 'api-key') clearSecret()
+    if (method !== 'bill-file') clearBilling()
+  }, [clearBilling, clearSecret])
 
   const applySelection = useCallback((selection: Selection) => {
     setSelectedModelName(selection.modelName)
@@ -90,7 +111,7 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
 
   const connect = useCallback(async () => {
     const cleanBaseUrl = baseUrl.trim()
-    let oneTimeApiKey = apiKey.trim()
+    let oneTimeApiKey = supplementMethod === 'api-key' ? apiKey.trim() : ''
     clearSecret()
     activeRequest.current?.abort()
     activeRequest.current = null
@@ -157,7 +178,31 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
       oneTimeApiKey = ''
       if (sequence === requestSequence.current) activeRequest.current = null
     }
-  }, [apiKey, applySelection, baseUrl, clearSecret])
+  }, [apiKey, applySelection, baseUrl, clearSecret, supplementMethod])
+
+  const importBilling = useCallback(async (file: File) => {
+    const cleanBaseUrl = billingBaseUrl(baseUrl)
+    setBillingState('loading')
+    setBillingError(null)
+    try {
+      const summary = await analyzeBillingFile(file)
+      const nextInspection = mergeBillingInspection(inspection, cleanBaseUrl, summary)
+      setBillingSummary(summary)
+      setBillingFileName(file.name)
+      setInspection(nextInspection)
+      setBaseUrl(nextInspection.baseUrl)
+      setRequestState('success')
+      setRequestError(null)
+      setBillingState('success')
+      setManualStationRatio('')
+      setManualCompletionRatio('')
+      setManualCacheRatio('')
+      applySelection(chooseInitialSelection(nextInspection))
+    } catch (error) {
+      setBillingState('error')
+      setBillingError(error instanceof Error ? error.message : '账单解析失败')
+    }
+  }, [applySelection, baseUrl, inspection])
 
   const selectedModel = useMemo(
     () => inspection?.models.find((model) => model.modelName === selectedModelName) ?? null,
@@ -351,6 +396,8 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     activeRequest.current = null
     setBaseUrl(DEFAULT_BASE_URL)
     clearSecret()
+    clearBilling()
+    setSupplementMethodState('none')
     setInspection(null)
     setRequestState('idle')
     setRequestError(null)
@@ -363,13 +410,21 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     setManualStationRatio('')
     setManualCompletionRatio('')
     setManualCacheRatio('')
-  }, [clearSecret])
+  }, [clearBilling, clearSecret])
 
   return {
     baseUrl,
     setBaseUrl,
     apiKey,
     setApiKey,
+    supplementMethod,
+    setSupplementMethod,
+    billingSummary,
+    billingFileName,
+    billingState,
+    billingError,
+    importBilling,
+    clearBilling,
     clearSecret,
     connect,
     reset,
@@ -498,5 +553,87 @@ function multiplyByTwo(value: string): string {
     return d(value).mul(2).toString()
   } catch {
     return value
+  }
+}
+
+function billingBaseUrl(value: string): string {
+  let url: URL
+  try {
+    url = new URL(value.trim())
+  } catch {
+    throw new Error('请先填写有效的中转站 Base URL')
+  }
+  if (url.protocol !== 'https:' || url.username || url.password) {
+    throw new Error('账单分析需要先填写 HTTPS 中转站地址')
+  }
+  return url.origin
+}
+
+function mergeBillingInspection(
+  current: RelayInspection | null,
+  baseUrl: string,
+  summary: BillingImportSummary,
+): RelayInspection {
+  const models = new Map((current?.models ?? []).map((model) => [model.modelName, { ...model }]))
+  const groups = new Map((current?.groups ?? []).map((group) => [group.id, { ...group }]))
+  const cacheStats = (current?.cacheStats ?? []).filter((stat) => stat.source !== 'billing-import')
+
+  for (const item of summary.models) {
+    const groupId = `bill:${item.id}`
+    const previous = models.get(item.modelName)
+    models.set(item.modelName, {
+      modelName: item.modelName,
+      quotaType: 0,
+      pricingKind: 'new-api-ratio',
+      modelRatio: item.observedStationMultiplier ? '1' : previous?.modelRatio ?? null,
+      completionRatio: item.completionRatio ?? previous?.completionRatio ?? null,
+      cacheRatio: item.cacheRatio ?? previous?.cacheRatio ?? null,
+      createCacheRatio: previous?.createCacheRatio ?? null,
+      enableGroups: [...new Set([...(previous?.enableGroups ?? []), groupId])],
+      recentlyUsed: true,
+      sources: [...new Set([...(previous?.sources ?? []), 'billing-import' as const])],
+    })
+    groups.set(groupId, {
+      id: groupId,
+      name: item.groupName || '账单汇总',
+      description: `${item.requestCount} 条有效记录`,
+      ratio: item.observedStationMultiplier ?? '1',
+      sources: ['billing-import'],
+    })
+    if (item.cacheHitRatePercent !== null) {
+      cacheStats.unshift({
+        modelName: item.modelName,
+        group: groupId,
+        hitRatePercent: item.cacheHitRatePercent,
+        cachedTokens: item.cacheReadTokens,
+        inputTokens: item.inputTokens,
+        logCount: item.requestCount,
+        windowStart: summary.windowStart,
+        windowEnd: summary.windowEnd,
+        basis: 'protocol-aware-input-tokens',
+        source: 'billing-import',
+        modelRatio: item.observedStationMultiplier ? '1' : null,
+        groupRatio: item.observedStationMultiplier,
+        completionRatio: item.completionRatio,
+        cacheRatio: item.cacheRatio,
+      })
+    }
+  }
+
+  const modelList = [...models.values()]
+  const groupList = [...groups.values()]
+  return {
+    baseUrl,
+    platform: summary.platform === 'one-api' ? 'one-api-compatible' : summary.platform === 'generic' ? 'unknown' : summary.platform,
+    stationName: current?.stationName || new URL(baseUrl).hostname,
+    version: current?.version ?? null,
+    models: modelList,
+    groups: groupList,
+    cacheStats,
+    channels: current?.channels ?? [],
+    capabilities: buildRelayCapabilities(modelList, groupList, cacheStats, current?.channels ?? []),
+    warnings: [...new Set([...(current?.warnings ?? []), ...summary.warnings])],
+    endpointStatus: current?.endpointStatus ?? [],
+    inspectedAt: new Date().toISOString(),
   }
 }

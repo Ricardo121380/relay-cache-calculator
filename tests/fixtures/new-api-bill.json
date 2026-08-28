@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": "2026-08-29T08:00:00+08:00",
+    "model_name": "gpt-5.6-sol",
+    "group_name": "default",
+    "prompt_tokens": 1000000,
+    "completion_tokens": 100000,
+    "cache_read_tokens": 600000,
+    "cache_write_tokens": 0,
+    "model_ratio": 2,
+    "group_ratio": 0.5,
+    "original_cost": 10,
+    "billed_cost": 5
+  },
+  {
+    "timestamp": "2026-08-29T09:00:00+08:00",
+    "model_name": "gpt-5.6-sol",
+    "group_name": "default",
+    "prompt_tokens": 500000,
+    "completion_tokens": 50000,
+    "cache_read_tokens": 300000,
+    "cache_write_tokens": 0,
+    "model_ratio": 2,
+    "group_ratio": 0.5,
+    "original_cost": 5,
+    "billed_cost": 2.5
+  }
+]

@@ -198,7 +198,7 @@ function hasDataSources(value: unknown): value is RelayInspection['models'][numb
     [
       'pricing', 'groups', 'ratio-config', 'recent-logs', 'public-monitor',
       'manifest', 'model-list', 'sub2api-billing', 'sub2api-usage',
-      'krill-pricing', 'krill-channel-status',
+      'krill-pricing', 'krill-channel-status', 'billing-import',
     ].includes(String(item)))
 }
 

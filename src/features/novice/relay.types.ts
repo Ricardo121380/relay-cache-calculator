@@ -10,6 +10,7 @@ export type RelayDataSource =
   | 'sub2api-usage'
   | 'krill-pricing'
   | 'krill-channel-status'
+  | 'billing-import'
 
 export type RelayPlatform =
   | 'new-api'
@@ -86,7 +87,7 @@ export interface RelayCacheStat {
   windowStart: string | null
   windowEnd: string | null
   basis: CacheRateBasis
-  source: 'recent-logs' | 'public-monitor' | 'manifest' | 'sub2api-usage' | 'krill-channel-status'
+  source: 'recent-logs' | 'public-monitor' | 'manifest' | 'sub2api-usage' | 'krill-channel-status' | 'billing-import'
   modelRatio: string | null
   groupRatio: string | null
   completionRatio: string | null

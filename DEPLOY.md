@@ -1,6 +1,6 @@
 # 中转站缓存成本计算器部署手册
 
-本文档供人工操作或交给 DeepSeek、Codex 等开发代理执行。目标是把当前项目安全地发布到**已有的 Cloudflare Pages 生产项目**，同时发布根目录 `functions/` 中的小白模式代理，并在发布后验证静态页面和 Function 都已切换到新版本。
+本文档供人工操作或交给 DeepSeek、Codex 等开发代理执行。目标是把当前项目安全地发布到**已有的 Cloudflare Pages 生产项目**，同时发布根目录 `functions/` 中的站点读取和访问计数接口，并在发布后验证静态页面、Function 与 D1 都已切换到新版本。
 
 > 本项目使用 Wrangler CLI 部署 Pages。Cloudflare Dashboard 中拖拽文件的 Direct Upload 只上传静态资源，**不会部署 Pages Functions**，因此不能用于这个版本。不要新建同名或相似项目，也不要只上传源码目录或只拖拽 `dist/`。
 
@@ -17,6 +17,8 @@
 | 生产主域名 | <https://relay-cache-calculator.pages.dev/> |
 | 部署类型 | Wrangler CLI Pages 部署（静态资源 + Pages Functions） |
 | Wrangler | 项目内依赖，要求 4.x |
+| D1 数据库 | `relay-cache-analytics` |
+| D1 绑定 | `VISITS_DB` |
 
 本文档不记录或宣称某个部署当前在线。部署 ID、独立版本地址和状态都是动态信息；每次执行新部署前，必须实时查询当前生产部署并记录成功版本，便于失败时回滚。
 
@@ -28,7 +30,11 @@
 缓存计算器/
 ├── wrangler.jsonc
 ├── functions/
-│   └── api/relay/inspect.ts
+│   └── api/
+│       ├── relay/inspect.ts
+│       └── visits.ts
+├── migrations/
+│   └── 0001_visit_daily.sql
 ├── public/
 ├── src/
 ├── package.json
@@ -36,6 +42,25 @@
 ```
 
 `wrangler.jsonc` 和 `functions/` 必须与 `package.json` 位于同一项目根目录。发布命令也必须从这个根目录执行；如果在 `dist/` 内运行或把 `functions/` 移进 `dist/`，Wrangler 将无法按本项目配置发现 Pages Function。
+
+### 1.2 首次配置 D1
+
+`wrangler.jsonc` 已记录 `VISITS_DB` 绑定。新 Cloudflare 账户或重建数据库时，先创建同名 D1 并将新 `database_id` 写入 `wrangler.jsonc`，然后执行：
+
+```bash
+pnpm exec wrangler d1 migrations apply relay-cache-analytics --remote
+```
+
+日常发布也应在 Pages 部署前先执行该命令；无新迁移时 Wrangler 会直接返回无待执行项。
+
+需要查看最近 30 天的每日标签会话次数时，使用只读查询：
+
+```bash
+pnpm exec wrangler d1 execute relay-cache-analytics --remote --command \
+  "SELECT day, sessions, updated_at FROM visit_daily ORDER BY day DESC LIMIT 30"
+```
+
+访问统计不保存 IP、User-Agent 或稳定访客标识，也不代表独立访客人数。
 
 ## 2. 两类线上地址有什么区别
 
@@ -218,6 +243,8 @@ pnpm exec wrangler pages deployment list \
 ```bash
 pnpm test
 pnpm build
+pnpm test:e2e
+pnpm exec wrangler d1 migrations apply relay-cache-analytics --remote
 pnpm audit --prod
 ```
 
@@ -226,7 +253,8 @@ pnpm audit --prod
 - 以本次命令实际输出为准，不在文档中硬编码可能过期的测试数量；
 - `pnpm audit --prod` 不应报告未评估的已知生产依赖漏洞；
 - `pnpm build` 必须同时通过前端与 Function 的 TypeScript 检查，并生成 `dist/index.html`。
-- 真实浏览器与视觉验收按第 6 步使用 ego-lite 完成；旧 Playwright 套件保留作维护参考，但不作为当前发布门槛。
+- `pnpm test:e2e` 只运行 3 项 CI 冒烟；完整真实浏览器与视觉验收按第 6 步使用 ego-lite 完成。
+- D1 迁移必须成功或明确返回“无待执行迁移”。
 
 任何关键命令退出码非 0，均不得继续生产发布。
 
@@ -248,7 +276,7 @@ du -sh dist
 
 - `dist/index.html` 引用了带哈希的 JS 和 CSS；
 - `dist/_headers` 存在；
-- `dist/_routes.json` 存在，并且只把 `/api/relay/*` 交给 Function；
+- `dist/_routes.json` 存在，并且只把 `/api/relay/*` 与 `/api/visits` 交给 Function；
 - `_headers` 中仍包含 CSP、`X-Content-Type-Options`、`X-Frame-Options` 和 `X-Robots-Tag`；
 - `/assets/*` 使用长期不可变缓存；
 - `/index.html` 使用重新验证缓存策略；
@@ -268,12 +296,12 @@ pnpm dev:pages
 使用 ego-lite 访问 Wrangler 输出的本地地址。等待 `document.fonts.ready` 与布局稳定，启用 reduced-motion，使用固定视口分段截图，不使用超长 full-page 截图。至少检查：
 
 1. 页面标题为“中转站缓存成本计算器”；
-2. 小白模式、简易模式和高级模式可以相互切换，简易/高级原有设置不被小白模式覆盖；
+2. 小白模式、高级模式和 Agent 模式可以相互切换，Agent 模式不显示单站/多站切换；
 3. 对 `/api/relay/inspect` 发起 POST 时返回 JSON，而不是 SPA 的 `index.html`；
 4. 使用受控测试站验证公开倍率读取；无法读取的站点显示手填降级，不让页面崩溃；
 5. 若用低权限测试 Key 验证日志读取，在 DevTools Network 中确认同源 `/api/relay/inspect` 的 JSON 只有 `baseUrl`、没有 `Authorization`；Key 只出现在浏览器发往目标站 `/api/log/token` 的请求头中；
 6. 日志请求完成后输入框清空，刷新后 Key 不出现，`localStorage`、`sessionStorage` 和 URL 中也没有 Key；目标站不允许 CORS 时应回退手填，不得改由 Function 代发；
-7. 简易/高级模式能显示实时结果，精确用量和多站对比仍可用；
+7. 小白手动填写和高级模式能显示实时结果，精确用量和最多 10 站对比仍可用；
 8. 390 × 844 手机视口下为单列布局，无横向滚动；
 9. 页面不出现 `NaN`、`Infinity` 或 `undefined`；
 10. 浏览器控制台没有 error。
@@ -419,12 +447,12 @@ curl -fsSI \
 在生产主域名重新执行核心流程：
 
 1. 清除本页面 localStorage 或使用全新浏览器上下文；
-2. 验证“小白模式、简易模式、高级模式”和“实时结果”区域可见；
+2. 验证“小白模式、高级模式、Agent 模式”和“实时结果”区域可见；
 3. 在小白模式输入受控测试站 Base URL，确认模型/分组/倍率来源与接口状态可见；
 4. 确认计费 `cache_ratio` 与运行时“缓存命中率”使用不同标签，不把二者当成同一个值；
 5. 对不兼容的旧 One API 或关闭接口的站点，确认页面提供手填降级；Cloudflare 出口收到 HTTP 451 时停止服务端后续探测，不更换域名或使用代理；
 6. 如确需验证日志读取，仅使用低权限临时中转 API Key。确认 Function 请求体没有 Key，Key 只由浏览器直发同一目标站的 `/api/log/token`；请求结束后确认 Key 输入清空，刷新后 Key 不恢复，URL、`localStorage`、`sessionStorage`、控制台和页面错误信息均无 Key；
-7. 切换简易/高级模式，确认小白模式没有覆盖原有手动参数；
+7. 切换小白手动填写与高级模式，确认两套手动参数相互隔离；
 8. 单站模式切换到“精确用量”，填写：
    - 普通输入 token：`100000`
    - 缓存读取 token：`500000`
@@ -624,6 +652,7 @@ Pages 项目：relay-cache-calculator
 线上验证：
 - 主域名 HTTP 200：是 / 否
 - /api/relay/inspect 返回 Function JSON：是 / 否
+- /api/visits GET/POST 与 D1 计数：通过 / 未通过
 - 本地与线上资源哈希一致：是 / 否
 - 安全与缓存响应头：通过 / 未通过
 - 小白模式公开倍率读取与手填降级：通过 / 未通过
@@ -632,7 +661,9 @@ Pages 项目：relay-cache-calculator
 - API Key 仅浏览器直发中转站，请求后清空且未持久化：通过 / 未通过 / 未使用 Key
 - HTTP 451 不绕过：通过 / 未测试（说明原因）
 - 单站精确用量：通过 / 未通过
-- 多站赢家翻转：通过 / 未通过
+- 10 站上限与赢家排行：通过 / 未通过
+- 账单本地导入且未持久化：通过 / 未通过
+- Agent Skill 预览、复制与下载：通过 / 未通过
 - 390×844 无横向溢出：通过 / 未通过
 - 控制台错误：0 / 具体数量
 
@@ -653,12 +684,12 @@ Cloudflare Pages 项目 relay-cache-calculator。
 1. 先检查现有 Cloudflare API/连接器和 Wrangler 认证，不要一开始就要求网页登录。
 2. 不得创建新 Pages 项目，不得修改 DNS、自定义域名、Access 或账户权限。
 3. 部署前记录当前生产部署 ID，作为回滚基线。
-4. 确认 wrangler.jsonc 和 functions/ 与 package.json 同在项目根；依次运行 pnpm install、pnpm test、pnpm build、pnpm audit --prod，并按本文使用 ego-lite 完成浏览器验收；旧 Playwright 套件不作为当前发布门槛。
+4. 确认 wrangler.jsonc、functions/、migrations/ 与 package.json 同在项目根；依次运行 pnpm install、pnpm test、pnpm build、pnpm test:e2e、D1 迁移和 pnpm audit --prod，并使用 ego-lite 完成浏览器验收。
 5. 任一关键测试或构建失败时停止部署，先报告问题；不要带病上线。
 6. 必须从项目根执行 `pnpm exec wrangler pages deploy dist --project-name relay-cache-calculator`，让 Wrangler 同时部署静态资源和 Pages Functions；禁止用 Dashboard 拖拽 Direct Upload。
-7. 上传后等待部署状态明确为 success，再验证生产主域名与 /api/relay/inspect Function 路由。
+7. 上传后等待部署状态明确为 success，再验证生产主域名、/api/relay/inspect 和 /api/visits。
 8. 比对 dist/index.html 与线上 HTML 的 JS/CSS 资源哈希。
-9. 验证安全响应头、小白模式读取/降级、Krill 公开接口、多线路/多渠道选择、Function 请求体不含 API Key、Key 仅由浏览器直连且不持久化、CORS 失败时不改走 Function、简易/高级模式不受影响、精确用量、多站对比和 375/390 手机布局。
+9. 验证安全响应头、小白模式读取/手动降级/账单导入、Krill 公开接口、Function 请求体不含 API Key、Key 仅由浏览器直连且不持久化、高级模式、Agent Skill、10 站上限、访问计数和 375/390 手机布局。
 10. 不得用真实管理员 Key、面板 JWT 或 Cookie；如验证 /api/log/token，只用低权限临时普通中转 API Key，且不得打印或记录。
 11. 最后按 DEPLOY.md 的“发布完成报告模板”返回完整结果；不要沿用文档中的历史部署 ID，也不要在未查询时声称已上线。
 ```

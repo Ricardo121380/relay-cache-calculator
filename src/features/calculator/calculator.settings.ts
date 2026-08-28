@@ -7,12 +7,12 @@ import type {
   PricingMode,
   ScenarioMode,
 } from './calculator.types'
+import { d } from '../../utils/decimal'
 
 export const STORAGE_KEY = 'relay-cache-calculator:v1'
-export const MAX_STATIONS = 5
 export const MIN_COMPARE_STATIONS = 2
+export const MAX_COMPARE_STATIONS = 10
 
-/** 中转站配置（倍率/计价方式/缓存口径） */
 export interface StationSettings {
   name: string
   pricingMode: PricingMode
@@ -22,7 +22,6 @@ export interface StationSettings {
   cacheRateBasis: CacheRateBasis
 }
 
-/** 一个模式完整的输入设置：模型价格 + 使用结构（单站 / 对比各自独立） */
 export interface ModeInputSettings {
   selectedModelId: string | null
   currency: Currency
@@ -45,34 +44,43 @@ export interface ModeInputSettings {
   }
 }
 
-/** 单站模式配置 = 1 家站 + 自己的输入 */
 export interface SingleModeSettings {
   station: StationSettings
   input: ModeInputSettings
 }
 
-/** 对比模式配置 = 2..5 家站 + 自己的输入 */
 export interface CompareModeSettings {
   stations: StationSettings[]
   input: ModeInputSettings
 }
 
+export interface NoviceManualSettings {
+  single: SingleModeSettings
+  compare: CompareModeSettings
+}
+
 export type CalcMode = 'single' | 'compare'
-
-/** 界面纵深：简易模式（模型 + 倍率 + 缓存率） / 高级模式（全参数） */
-export type UiMode = 'simple' | 'advanced'
-
-/** 主题：日间 / 夜间 / 跟随系统 */
+export type TopMode = 'novice' | 'advanced' | 'agent'
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 export interface CalculatorSettings {
-  version: 5
-  uiMode: UiMode
+  version: 6
   mode: CalcMode
   single: SingleModeSettings
   compare: CompareModeSettings
+  noviceManual: NoviceManualSettings
   displayDecimals: 2 | 4 | 6
   theme: ThemeMode
+}
+
+export const SIMPLE_DEFAULT_MODEL_ID = 'gpt-5-6-sol'
+const SIMPLE_MODEL_PRESET: Pick<ModeInputSettings, 'selectedModelId' | 'currency' | 'inputPricePerMillion' | 'cachedReadPricePerMillion' | 'outputPricePerMillion' | 'cacheWritePricePerMillion'> = {
+  selectedModelId: SIMPLE_DEFAULT_MODEL_ID,
+  currency: 'USD',
+  inputPricePerMillion: '4',
+  cachedReadPricePerMillion: '0.4',
+  outputPricePerMillion: '20',
+  cacheWritePricePerMillion: '5',
 }
 
 export function createDefaultStation(overrides: Partial<StationSettings> = {}): StationSettings {
@@ -87,24 +95,12 @@ export function createDefaultStation(overrides: Partial<StationSettings> = {}): 
   }
 }
 
-/** 简易模式默认模型：GPT-5.6 Sol（美元价，汇率默认 7.2） */
-export const SIMPLE_DEFAULT_MODEL_ID = 'gpt-5-6-sol'
-const SIMPLE_MODEL_PRESET: Pick<ModeInputSettings, 'selectedModelId' | 'currency' | 'inputPricePerMillion' | 'cachedReadPricePerMillion' | 'outputPricePerMillion' | 'cacheWritePricePerMillion'> = {
-  selectedModelId: SIMPLE_DEFAULT_MODEL_ID,
-  currency: 'USD',
-  inputPricePerMillion: '4',
-  cachedReadPricePerMillion: '0.4',
-  outputPricePerMillion: '20',
-  cacheWritePricePerMillion: '5',
-}
-
 export function createDefaultInput(): ModeInputSettings {
   return {
     ...SIMPLE_MODEL_PRESET,
     cachePriceMode: 'direct',
     cachePriceCoefficient: '0.1',
     exchangeRateToCny: '7.2',
-    // 默认编程口径：输入占 90%+（10:1），缓存只影响输入
     scenarioMode: 'mixed-total',
     inputRatio: '10',
     outputRatio: '1',
@@ -114,15 +110,12 @@ export function createDefaultInput(): ModeInputSettings {
 }
 
 function compareStation(index: number, base?: Partial<StationSettings>): StationSettings {
-  return { ...createDefaultStation(base), name: '中转站 ' + (index + 1) }
+  return createDefaultStation({ ...base, name: `中转站 ${index + 1}` })
 }
 
-export function createDefaultSettings(): CalculatorSettings {
+function createDefaultManual(): NoviceManualSettings {
   return {
-    version: 5,
-    uiMode: 'simple',
-    mode: 'single',
-    single: { station: createDefaultStation({ name: '中转站' }), input: createDefaultInput() },
+    single: { station: createDefaultStation(), input: createDefaultInput() },
     compare: {
       stations: [
         compareStation(0, { modelMultiplier: '1.2', cacheHitRatePercent: '60' }),
@@ -130,6 +123,17 @@ export function createDefaultSettings(): CalculatorSettings {
       ],
       input: createDefaultInput(),
     },
+  }
+}
+
+export function createDefaultSettings(): CalculatorSettings {
+  const manual = createDefaultManual()
+  return {
+    version: 6,
+    mode: 'single',
+    single: structuredClone(manual.single),
+    compare: structuredClone(manual.compare),
+    noviceManual: manual,
     displayDecimals: 4,
     theme: 'system',
   }
@@ -143,11 +147,16 @@ export function activeInput(s: CalculatorSettings): ModeInputSettings {
   return s.mode === 'compare' ? s.compare.input : s.single.input
 }
 
-/** 用某模式的输入 + 某家中转站构造引擎输入 */
-export function settingsToInput(
-  input: ModeInputSettings,
-  station: StationSettings,
-): CalculatorInput {
+export function activeManualStations(s: CalculatorSettings, mode: CalcMode): StationSettings[] {
+  return mode === 'compare' ? s.noviceManual.compare.stations : [s.noviceManual.single.station]
+}
+
+export function activeManualInput(s: CalculatorSettings, mode: CalcMode): ModeInputSettings {
+  const input = mode === 'compare' ? s.noviceManual.compare.input : s.noviceManual.single.input
+  return { ...input, exchangeRateToCny: '7.2' }
+}
+
+export function settingsToInput(input: ModeInputSettings, station: StationSettings): CalculatorInput {
   return {
     currency: input.currency,
     pricingMode: station.pricingMode,
@@ -170,46 +179,6 @@ export function settingsToInput(
   }
 }
 
-/** 简易模式内置预设：切换到简易模式时，把当前模式的输入/站点整理为
- *  “只填模型、倍率、缓存率”的固定口径（默认模型 GPT-5.6 Sol、
- *   基础价×倍率、缓存读取价=模型预设价、命中率口径=按输入 token、
- *   编程口径=混合 10:1（输入约 91%）、分组倍率=1）。 */
-export function applySimplePresets(s: CalculatorSettings): CalculatorSettings {
-  const inputPatch: Partial<ModeInputSettings> = {
-    ...SIMPLE_MODEL_PRESET,
-    scenarioMode: 'mixed-total',
-    inputRatio: '10',
-    outputRatio: '1',
-    cachePriceMode: 'direct',
-  }
-  const stationPatch: Partial<StationSettings> = {
-    pricingMode: 'base-times-multiplier',
-    groupMultiplier: '1',
-    cacheRateBasis: 'input-tokens',
-  }
-  if (s.mode === 'compare') {
-    return {
-      ...s,
-      uiMode: 'simple',
-      compare: {
-        ...s.compare,
-        input: { ...s.compare.input, ...inputPatch },
-        stations: s.compare.stations.map((station) => ({ ...station, ...stationPatch })),
-      },
-    }
-  }
-  return {
-    ...s,
-    uiMode: 'simple',
-    single: {
-      ...s.single,
-      station: { ...s.single.station, ...stationPatch },
-      input: { ...s.single.input, ...inputPatch },
-    },
-  }
-}
-
-/** 选择模型预设：把预设单价带入当前模式的输入 */
 export function applyModelPreset(model: ModelPrice): Partial<ModeInputSettings> {
   return {
     selectedModelId: model.id,
@@ -221,106 +190,89 @@ export function applyModelPreset(model: ModelPrice): Partial<ModeInputSettings> 
   }
 }
 
-// ---------- 本地持久化（v1..v4 → v5 迁移） ----------
-
-function isStationLike(v: unknown): v is Partial<StationSettings> {
-  return typeof v === 'object' && v !== null
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function stringValue(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value : fallback
+function text(value: unknown, fallback: string): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return fallback
 }
 
-function normalizeStation(raw: unknown, fallback = createDefaultStation()): StationSettings {
-  const value = isStationLike(raw) ? raw : {}
+function normalizeStation(raw: unknown, fallback: StationSettings): StationSettings {
+  const value = isRecord(raw) ? raw : {}
   return {
-    name: stringValue(value.name, fallback.name),
-    pricingMode: value.pricingMode === 'final-unit-price' || value.pricingMode === 'base-times-multiplier'
-      ? value.pricingMode
-      : fallback.pricingMode,
-    modelMultiplier: stringValue(value.modelMultiplier, fallback.modelMultiplier),
-    groupMultiplier: stringValue(value.groupMultiplier, fallback.groupMultiplier),
-    cacheHitRatePercent: stringValue(value.cacheHitRatePercent, fallback.cacheHitRatePercent),
-    cacheRateBasis: value.cacheRateBasis === 'total-tokens' || value.cacheRateBasis === 'input-tokens'
-      ? value.cacheRateBasis
-      : fallback.cacheRateBasis,
+    name: text(value.name, fallback.name),
+    pricingMode: value.pricingMode === 'final-unit-price' ? 'final-unit-price' : fallback.pricingMode,
+    modelMultiplier: text(value.modelMultiplier, fallback.modelMultiplier),
+    groupMultiplier: text(value.groupMultiplier, fallback.groupMultiplier),
+    cacheHitRatePercent: text(value.cacheHitRatePercent, fallback.cacheHitRatePercent),
+    cacheRateBasis: value.cacheRateBasis === 'total-tokens' ? 'total-tokens' : fallback.cacheRateBasis,
   }
 }
 
 function normalizeInput(raw: unknown, fallback: ModeInputSettings): ModeInputSettings {
-  const value = isStationLike(raw) ? raw as Partial<ModeInputSettings> : {}
-  const exact = isStationLike(value.exactUsage)
-    ? value.exactUsage as Partial<ModeInputSettings['exactUsage']>
-    : {}
+  const value = isRecord(raw) ? raw : {}
+  const exact = isRecord(value.exactUsage) ? value.exactUsage : {}
   return {
-    selectedModelId: typeof value.selectedModelId === 'string' || value.selectedModelId === null
-      ? value.selectedModelId
-      : fallback.selectedModelId,
-    currency: value.currency === 'USD' || value.currency === 'CNY' ? value.currency : fallback.currency,
-    inputPricePerMillion: stringValue(value.inputPricePerMillion, fallback.inputPricePerMillion),
-    cachedReadPricePerMillion: stringValue(value.cachedReadPricePerMillion, fallback.cachedReadPricePerMillion),
-    outputPricePerMillion: stringValue(value.outputPricePerMillion, fallback.outputPricePerMillion),
-    cacheWritePricePerMillion: stringValue(value.cacheWritePricePerMillion, fallback.cacheWritePricePerMillion),
-    cachePriceMode: value.cachePriceMode === 'coefficient' || value.cachePriceMode === 'direct'
-      ? value.cachePriceMode
-      : fallback.cachePriceMode,
-    cachePriceCoefficient: stringValue(value.cachePriceCoefficient, fallback.cachePriceCoefficient),
-    exchangeRateToCny: stringValue(value.exchangeRateToCny, fallback.exchangeRateToCny),
-    scenarioMode: value.scenarioMode === 'mixed-total' || value.scenarioMode === 'exact-usage' || value.scenarioMode === 'input-only'
-      ? value.scenarioMode
-      : fallback.scenarioMode,
-    inputRatio: stringValue(value.inputRatio, fallback.inputRatio),
-    outputRatio: stringValue(value.outputRatio, fallback.outputRatio),
-    budgetCny: stringValue(value.budgetCny, fallback.budgetCny),
+    selectedModelId: typeof value.selectedModelId === 'string' || value.selectedModelId === null ? value.selectedModelId : fallback.selectedModelId,
+    currency: value.currency === 'CNY' ? 'CNY' : fallback.currency,
+    inputPricePerMillion: text(value.inputPricePerMillion, fallback.inputPricePerMillion),
+    cachedReadPricePerMillion: text(value.cachedReadPricePerMillion, fallback.cachedReadPricePerMillion),
+    outputPricePerMillion: text(value.outputPricePerMillion, fallback.outputPricePerMillion),
+    cacheWritePricePerMillion: text(value.cacheWritePricePerMillion, fallback.cacheWritePricePerMillion),
+    cachePriceMode: value.cachePriceMode === 'coefficient' ? 'coefficient' : fallback.cachePriceMode,
+    cachePriceCoefficient: text(value.cachePriceCoefficient, fallback.cachePriceCoefficient),
+    exchangeRateToCny: text(value.exchangeRateToCny, fallback.exchangeRateToCny),
+    scenarioMode: value.scenarioMode === 'input-only' || value.scenarioMode === 'exact-usage' ? value.scenarioMode : fallback.scenarioMode,
+    inputRatio: text(value.inputRatio, fallback.inputRatio),
+    outputRatio: text(value.outputRatio, fallback.outputRatio),
+    budgetCny: text(value.budgetCny, fallback.budgetCny),
     exactUsage: {
-      normalInputTokens: stringValue(exact.normalInputTokens, fallback.exactUsage.normalInputTokens),
-      cachedReadTokens: stringValue(exact.cachedReadTokens, fallback.exactUsage.cachedReadTokens),
-      cacheWriteTokens: stringValue(exact.cacheWriteTokens, fallback.exactUsage.cacheWriteTokens),
-      outputTokens: stringValue(exact.outputTokens, fallback.exactUsage.outputTokens),
+      normalInputTokens: text(exact.normalInputTokens, fallback.exactUsage.normalInputTokens),
+      cachedReadTokens: text(exact.cachedReadTokens, fallback.exactUsage.cachedReadTokens),
+      cacheWriteTokens: text(exact.cacheWriteTokens, fallback.exactUsage.cacheWriteTokens),
+      outputTokens: text(exact.outputTokens, fallback.exactUsage.outputTokens),
     },
   }
 }
 
-function isDefaultName(name: string | undefined): boolean {
-  return !name || name === '中转站' || /^中转站 ?[0-9]*$/.test(name)
+function normalizeSingle(raw: unknown, fallback: SingleModeSettings): SingleModeSettings {
+  const value = isRecord(raw) ? raw : {}
+  return { station: normalizeStation(value.station, fallback.station), input: normalizeInput(value.input, fallback.input) }
 }
 
-function normalizeCompareStations(raw: unknown): StationSettings[] {
-  let list: StationSettings[] = []
-  if (Array.isArray(raw)) {
-    list = raw
-      .filter(isStationLike)
-      .map((s) => normalizeStation(s))
-  }
-  while (list.length < MIN_COMPARE_STATIONS) list.push(compareStation(list.length))
-  return list.slice(0, MAX_STATIONS).map((s, i) =>
-    isDefaultName(s.name) ? { ...s, name: '中转站 ' + (i + 1) } : s,
-  )
+function normalizeCompare(raw: unknown, fallback: CompareModeSettings): CompareModeSettings {
+  const value = isRecord(raw) ? raw : {}
+  const source = Array.isArray(value.stations) ? value.stations : []
+  const stations = source.slice(0, MAX_COMPARE_STATIONS).map((station, index) => {
+    const normalized = normalizeStation(station, compareStation(index))
+    return /^中转站 ?\d*$/.test(normalized.name) ? { ...normalized, name: `中转站 ${index + 1}` } : normalized
+  })
+  while (stations.length < MIN_COMPARE_STATIONS) stations.push(compareStation(stations.length))
+  return { stations, input: normalizeInput(value.input, fallback.input) }
 }
 
-/** 把 v4 及更早的"顶层共享输入"字段抽取为一份 ModeInputSettings */
-function extractInput(legacy: Record<string, unknown>, fallback: ModeInputSettings): ModeInputSettings {
-  const raw = (key: string, def: unknown) => (legacy[key] !== undefined ? legacy[key] : def)
+function toManual(single: SingleModeSettings, compare: CompareModeSettings): NoviceManualSettings {
+  const makeStation = (station: StationSettings): StationSettings => ({
+    ...station,
+    pricingMode: 'base-times-multiplier',
+    modelMultiplier: d(station.modelMultiplier || '1').mul(station.groupMultiplier || '1').toString(),
+    groupMultiplier: '1',
+    cacheRateBasis: 'input-tokens',
+  })
+  const makeInput = (input: ModeInputSettings): ModeInputSettings => ({
+    ...input,
+    scenarioMode: 'mixed-total',
+    inputRatio: '10',
+    outputRatio: '1',
+    cachePriceMode: 'direct',
+    exactUsage: { normalInputTokens: '', cachedReadTokens: '', cacheWriteTokens: '', outputTokens: '' },
+  })
   return {
-    selectedModelId: (raw('selectedModelId', fallback.selectedModelId) as string | null) ?? fallback.selectedModelId,
-    currency: raw('currency', fallback.currency) as Currency,
-    inputPricePerMillion: raw('inputPricePerMillion', fallback.inputPricePerMillion) as string,
-    cachedReadPricePerMillion: raw('cachedReadPricePerMillion', fallback.cachedReadPricePerMillion) as string,
-    outputPricePerMillion: raw('outputPricePerMillion', fallback.outputPricePerMillion) as string,
-    cacheWritePricePerMillion: raw('cacheWritePricePerMillion', fallback.cacheWritePricePerMillion) as string,
-    cachePriceMode: raw('cachePriceMode', fallback.cachePriceMode) as CachePriceMode,
-    cachePriceCoefficient: raw('cachePriceCoefficient', fallback.cachePriceCoefficient) as string,
-    exchangeRateToCny: raw('exchangeRateToCny', fallback.exchangeRateToCny) as string,
-    scenarioMode: raw('scenarioMode', fallback.scenarioMode) as ScenarioMode,
-    inputRatio: raw('inputRatio', fallback.inputRatio) as string,
-    outputRatio: raw('outputRatio', fallback.outputRatio) as string,
-    budgetCny: raw('budgetCny', fallback.budgetCny) as string,
-    exactUsage: {
-      normalInputTokens: raw('exactUsage', fallback.exactUsage) ? (legacy.exactUsage as ModeInputSettings['exactUsage']).normalInputTokens : fallback.exactUsage.normalInputTokens,
-      cachedReadTokens: raw('exactUsage', fallback.exactUsage) ? (legacy.exactUsage as ModeInputSettings['exactUsage']).cachedReadTokens : fallback.exactUsage.cachedReadTokens,
-      cacheWriteTokens: raw('exactUsage', fallback.exactUsage) ? (legacy.exactUsage as ModeInputSettings['exactUsage']).cacheWriteTokens : fallback.exactUsage.cacheWriteTokens,
-      outputTokens: raw('exactUsage', fallback.exactUsage) ? (legacy.exactUsage as ModeInputSettings['exactUsage']).outputTokens : fallback.exactUsage.outputTokens,
-    },
+    single: { station: makeStation(single.station), input: makeInput(single.input) },
+    compare: { stations: compare.stations.map(makeStation), input: makeInput(compare.input) },
   }
 }
 
@@ -329,99 +281,41 @@ export function loadSettings(): CalculatorSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return fallback
-    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const parsed: unknown = JSON.parse(raw)
+    if (!isRecord(parsed)) return fallback
 
-    if (parsed.version === 5) {
-      const single = isStationLike(parsed.single) ? parsed.single as Partial<SingleModeSettings> : {}
-      const compare = isStationLike(parsed.compare) ? parsed.compare as Partial<CompareModeSettings> : {}
-      return {
-        version: 5,
-        uiMode: parsed.uiMode === 'advanced' ? 'advanced' : 'simple',
-        mode: parsed.mode === 'compare' ? 'compare' : 'single',
-        single: {
-          station: normalizeStation(single.station, fallback.single.station),
-          input: normalizeInput(single.input, fallback.single.input),
-        },
-        compare: {
-          stations: normalizeCompareStations(compare.stations),
-          input: normalizeInput(compare.input, fallback.compare.input),
-        },
-        displayDecimals: parsed.displayDecimals === 2 || parsed.displayDecimals === 6 ? parsed.displayDecimals : 4,
-        theme: parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system' ? parsed.theme : 'system',
-      }
+    const single = normalizeSingle(parsed.single, fallback.single)
+    const compare = normalizeCompare(parsed.compare, fallback.compare)
+    const noviceRaw = isRecord(parsed.noviceManual) ? parsed.noviceManual : null
+    const noviceManual = parsed.version === 6 && noviceRaw
+      ? {
+          single: normalizeSingle(noviceRaw.single, fallback.noviceManual.single),
+          compare: normalizeCompare(noviceRaw.compare, fallback.noviceManual.compare),
+        }
+      : toManual(single, compare)
+
+    return {
+      version: 6,
+      mode: parsed.mode === 'compare' ? 'compare' : 'single',
+      single,
+      compare,
+      noviceManual,
+      displayDecimals: parsed.displayDecimals === 2 || parsed.displayDecimals === 6 ? parsed.displayDecimals : 4,
+      theme: parsed.theme === 'light' || parsed.theme === 'dark' ? parsed.theme : 'system',
     }
-
-    if (parsed.version === 4) {
-      const v4 = parsed as Record<string, unknown>
-      const input = extractInput(v4, fallback.single.input)
-      const singleStation = isStationLike(v4.single) ? (v4.single as Partial<StationSettings>) : null
-      const stations = normalizeCompareStations(v4.stations)
-      const s = { ...fallback, ...(v4 as unknown as object), version: 5, mode: 'single' as CalcMode } as CalculatorSettings
-      s.single = {
-        station: { ...createDefaultStation(), ...(singleStation ?? {}) } as StationSettings,
-        input: { ...input },
-      }
-      s.compare = { stations, input: { ...input } }
-      return s
-    }
-
-    if (parsed.version === 3) {
-      const v3 = parsed as Record<string, unknown>
-      const input = extractInput(v3, fallback.single.input)
-      const list = Array.isArray(v3.stations) ? v3.stations.filter(isStationLike) : []
-      const single = list[0] ? ({ ...createDefaultStation(), ...list[0] } as StationSettings) : createDefaultStation()
-      const s = { ...fallback, ...(v3 as unknown as object), version: 5, mode: (v3.compareEnabled ? 'compare' : 'single') as CalcMode } as CalculatorSettings
-      s.single = { station: isDefaultName(single.name) ? { ...single, name: '中转站' } : single, input: { ...input } }
-      s.compare = { stations: normalizeCompareStations(list), input: { ...input } }
-      return s
-    }
-
-    if (parsed.version === 2) {
-      const v2 = parsed as Record<string, unknown>
-      const input = extractInput(v2, fallback.single.input)
-      const a = isStationLike(v2.stationA) ? v2.stationA : null
-      const b = isStationLike(v2.stationB) ? v2.stationB : null
-      const single = a ? ({ ...createDefaultStation(), ...a, name: '中转站' } as StationSettings) : createDefaultStation()
-      const s = { ...fallback, ...(v2 as unknown as object), version: 5, mode: (v2.compareEnabled ? 'compare' : 'single') as CalcMode } as CalculatorSettings
-      s.single = { station: single, input: { ...input } }
-      s.compare = { stations: normalizeCompareStations([...(a ? [a] : []), ...(b ? [b] : [])]), input: { ...input } }
-      return s
-    }
-
-    if (parsed.version === 1) {
-      const v1 = parsed as Record<string, unknown>
-      const input = extractInput(v1, fallback.single.input)
-      const single: StationSettings = {
-        name: '中转站',
-        pricingMode: (v1.pricingMode as PricingMode) ?? 'base-times-multiplier',
-        modelMultiplier: (v1.modelMultiplier as string) ?? '1.2',
-        groupMultiplier: (v1.groupMultiplier as string) ?? '1',
-        cacheHitRatePercent: (v1.cacheHitRatePercent as string) ?? '60',
-        cacheRateBasis: (v1.cacheRateBasis as CacheRateBasis) ?? 'input-tokens',
-      }
-      const s = { ...fallback, ...(v1 as unknown as object), version: 5, mode: 'single' as CalcMode } as CalculatorSettings
-      s.single = { station: single, input: { ...input } }
-      return s
-    }
-
-    return fallback
   } catch {
     return fallback
   }
 }
 
-export function saveSettings(s: CalculatorSettings): void {
+export function saveSettings(settings: CalculatorSettings): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
   } catch {
-    // 隐私优先：写入失败（如隐私模式）时静默降级
+    // Calculations still work when a private browsing mode disables storage.
   }
 }
 
 export function clearStoredSettings(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // ignore
-  }
+  localStorage.removeItem(STORAGE_KEY)
 }

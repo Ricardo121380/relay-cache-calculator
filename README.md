@@ -11,13 +11,20 @@
 
 ## 主要功能
 
-### 三种输入模式
+### 三个主入口
 
-- **小白模式**：输入中转站 Base URL，尝试读取公开模型、价格、倍率和缓存数据；支持单站计算与 2–5 站对比。
-- **简易模式**：手动填写常用价格、站点综合倍率与缓存命中率。
+- **小白模式**：输入 Base URL 后读取公开数据；可选使用低权限普通 API Key 或在本地导入账单补充缓存与倍率数据。读取失败时可在同一模式中切换为手动填写。
 - **高级模式**：独立设置模型倍率、分组倍率、缓存分母口径、缓存写入价和精确 token 用量。
+- **Agent 模式**：预览、复制和下载与网页同口径的 `SKILL.md`，供 Codex、Claude Code 等 Agent 计算成本、缓存率和实际倍率。
 
-三种模式的状态相互隔离，切换模式不会覆盖另一种模式的参数。
+小白和高级模式都支持单站计算与 2–10 站对比。原简易模式的能力保留在“小白模式 → 手动填写”中，旧设置会自动迁移。
+
+### 本地账单分析
+
+- 支持 New API、Sub2API 和 One API 常见 CSV/JSON 导出格式。
+- 文件只在 Web Worker 中解析，不上传、不写入浏览器存储；单文件最大 20MB，最多 100,000 条记录。
+- 缓存率按汇总 token 重新计算，不平均每次请求的百分比，不跨模型或分组合并。
+- 缺少缓存字段时明确提示手动补充，不把缺失值当成 0。
 
 ### 计算与对比
 
@@ -27,6 +34,7 @@
 - 同预算可用 token、缓存节省金额、节省比例与完整代入公式。
 - 多站排名保持“成本越高，条形越长”，不同模型对比会明确提示口径差异。
 - 浅色、深色和跟随系统三档主题，支持键盘、移动端和减少动效/透明度偏好。
+- 页脚仅统计“今日标签会话次数”和“累计标签会话次数”；不生成访客 ID，不保存 IP、User-Agent 或访问明细。
 
 ## 支持的站点数据源
 
@@ -86,6 +94,7 @@ API Key  ──→ 用户浏览器直连 ──→ 目标站固定只读接口
 - API Key 只保留在一次读取的 React 内存状态中，不写入 `localStorage`、`sessionStorage`、IndexedDB、Cookie、URL 或本站服务端日志。
 - 浏览器直连使用 `credentials: 'omit'`、`cache: 'no-store'`、`redirect: 'error'` 和 `referrerPolicy: 'no-referrer'`；提交后立即清空输入状态。
 - 只应使用低权限普通 API Key；不要输入管理员密钥、面板 JWT 或登录 Cookie。
+- 账单导入与 API Key 互斥；切换数据方式时会清除另一路径的临时数据。
 
 ### 公开配置读取
 
@@ -99,9 +108,10 @@ Function 只访问程序预定义的固定路径，并执行 HTTPS、公网 DNS�
 - Vite 8
 - Decimal.js
 - Cloudflare Pages + Pages Functions
+- Cloudflare D1（仅每日会话计数）
 - Vitest + Testing Library
 - ego-lite（真实浏览器与视觉验收）
-- Playwright（历史回归套件）
+- Playwright（3 项 CI 冒烟测试）
 
 ## 本地开发
 
@@ -125,32 +135,35 @@ pnpm dev:pages
 
 ```bash
 pnpm test          # Vitest 单元与组件测试
-pnpm test:e2e      # 历史 Playwright 回归套件，供维护参考
+pnpm test:e2e      # 3 项 Playwright CI 冒烟测试
 pnpm build         # TypeScript 检查 + 生产构建
 pnpm preview       # 仅预览静态 dist
 pnpm update:prices # 检查内置模型价格快照
 ```
 
-发布前除自动化测试与构建外，使用 ego-lite 对小白/简易/高级模式、单站/多站、三档主题和主要响应式视口做真实浏览器验收。
+发布前除自动化测试与构建外，使用 ego-lite 对小白/高级/Agent、单站/十站、账单导入、三档主题和主要响应式视口做真实浏览器验收。
 
 ## 项目结构
 
 ```text
 functions/
-├── api/relay/inspect.ts       # Pages Function 入口
+├── api/relay/inspect.ts       # 公开站点数据读取
+├── api/visits.ts              # D1 会话计数
 └── _lib/relay-inspect.ts      # 固定端点读取、解析与 SSRF 防护
 public/
 ├── _headers                    # CSP 与安全响应头
+├── skills/.../SKILL.md         # Agent 模式文件
 └── _routes.json                # Pages Function 路由范围
 src/
 ├── app/                        # 应用壳与模式切换
 ├── components/                 # 可复用 UI
-├── features/calculator/        # 计算引擎、简易/高级模式
-├── features/novice/            # 站点适配、浏览器直连与小白模式
+├── features/calculator/        # 计算引擎与高级/手动路径
+├── features/novice/            # 站点适配、账单 Worker 与小白模式
+├── features/agent/             # Agent 模式
 ├── data/models.json            # 内置模型价格快照
 └── styles/                      # Liquid Glass 材质、token 与布局
 tests/                              # Playwright 端到端测试
-wrangler.jsonc                      # Cloudflare Pages/Function 配置
+wrangler.jsonc                      # Pages/Function/D1 配置
 ```
 
 ## 部署到 Cloudflare Pages
@@ -161,6 +174,7 @@ wrangler.jsonc                      # Cloudflare Pages/Function 配置
 pnpm install --frozen-lockfile
 pnpm test
 pnpm build
+pnpm exec wrangler d1 migrations apply relay-cache-analytics --remote
 pnpm exec wrangler pages deploy dist \
   --project-name <YOUR_PAGES_PROJECT> \
   --branch main
