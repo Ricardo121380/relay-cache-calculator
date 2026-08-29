@@ -380,7 +380,7 @@
   transition: color var(--motion), transform var(--motion-fast), text-shadow var(--motion);
 }
 
-.segmented--compact .segmented__pill { min-height: 38px; padding-inline: 10px; font-size: 12.5px; }
+.segmented--compact .segmented__pill { min-height: 38px; padding-inline: 8px; font-size: 12.5px; }
 .segmented__pill:hover { color: var(--color-ink); }
 .segmented__radio:checked + .segmented__pill {
   color: var(--color-accent-deep);
