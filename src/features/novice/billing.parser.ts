@@ -10,13 +10,13 @@ const MAX_RECORDS = 100_000
 
 const ALIASES = {
   timestamp: ['time', 'timestamp', 'created_at', 'createdat', '时间'],
-  model: ['model', 'model_name', 'modelname', '模型'],
-  group: ['group', 'group_name', 'groupname', '分组', '线路'],
-  input: ['input_tokens', 'inputtokens', 'prompt_tokens', 'prompttokens', '输入_token', '输入token', '输入tokens'],
-  output: ['output_tokens', 'outputtokens', 'completion_tokens', 'completiontokens', '输出_token', '输出token', '输出tokens'],
-  cacheRead: ['cache_read_tokens', 'cachereadtokens', 'cache_tokens', 'cachetokens', '缓存读取_token', '缓存读取token', '缓存token'],
+  model: ['model', 'model_name', 'modelname', '模型', '模型名称'],
+  group: ['group', 'group_name', 'groupname', '分组', '线路', '令牌分组'],
+  input: ['input_tokens', 'inputtokens', 'prompt_tokens', 'prompttokens', '输入_token', '输入token', '输入tokens', '输入', '提示token'],
+  output: ['output_tokens', 'outputtokens', 'completion_tokens', 'completiontokens', '输出_token', '输出token', '输出tokens', '输出', '补全token'],
+  cacheRead: ['cache_read_tokens', 'cachereadtokens', 'cache_tokens', 'cachetokens', '缓存读取_token', '缓存读取token', '缓存token', '缓存读'],
   cacheWrite: ['cache_creation_tokens', 'cachecreationtokens', 'cache_write_tokens', 'cachewritetokens', '缓存写入_token', '缓存写入token'],
-  billed: ['actual_cost', 'actualcost', 'billed_cost', 'billedcost', '实扣成本', '实际费用'],
+  billed: ['actual_cost', 'actualcost', 'billed_cost', 'billedcost', '实扣成本', '实际费用', '费用', '金额'],
   original: ['total_cost', 'totalcost', 'original_cost', 'originalcost', '原始成本', '标准费用'],
   rate: ['rate_multiplier', 'ratemultiplier', '倍率'],
   modelRatio: ['model_ratio', 'modelratio', '模型倍率'],
@@ -95,7 +95,7 @@ function csvRows(text: string): string[][] {
 
 function normalizeRecord(raw: Record<string, unknown>): BillingRecord | null {
   const row = normalizedKeys(raw)
-  const other = parseOther(raw.other)
+  const other = parseOther(pick(row, ['other', '其他']))
   const modelName = clean(pick(row, ALIASES.model) ?? raw.model_name ?? raw.model)
   if (!modelName) return null
 
@@ -103,7 +103,12 @@ function normalizeRecord(raw: Record<string, unknown>): BillingRecord | null {
   const cached = nonNegative(pick(row, ALIASES.cacheRead) ?? other?.cache_tokens)
   const requestPath = clean(other?.request_path).toLowerCase()
   const claudeSemantic = /(^|\/)v1\/messages(?:$|\/)|\/messages$/.test(requestPath)
-  const input = prompt === null ? null : claudeSemantic && cached !== null ? prompt + cached : Math.max(prompt, cached ?? 0)
+  const separateCacheColumns = row['输入'] !== undefined && row['缓存读'] !== undefined
+  const input = prompt === null
+    ? null
+    : (claudeSemantic || separateCacheColumns) && cached !== null
+      ? prompt + cached
+      : Math.max(prompt, cached ?? 0)
   if (input === null) return null
 
   const directRate = nonNegative(pick(row, ALIASES.rate))
@@ -186,7 +191,7 @@ function summarize(records: BillingRecord[], total: number, platform: BillingPla
 function detectPlatform(rows: Record<string, unknown>[]): BillingPlatform {
   const keys = new Set(rows.slice(0, 20).flatMap((row) => Object.keys(normalizedKeys(row))))
   if (keys.has('actual_cost') || keys.has('rate_multiplier')) return 'sub2api'
-  if (keys.has('other') || keys.has('model_name') || keys.has('group')) return 'new-api'
+  if (keys.has('other') || keys.has('其他') || keys.has('model_name') || keys.has('模型名称') || keys.has('group')) return 'new-api'
   if (keys.has('quota') && keys.has('prompt_tokens')) return 'one-api'
   return 'generic'
 }

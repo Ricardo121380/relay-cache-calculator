@@ -167,6 +167,48 @@ describe('useNoviceCalculator', () => {
     expect(result.current.inspection?.warnings.join('')).toContain('CORS')
   })
 
+  it('失败的重新读取不会清空上一次已确认的站点数据', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(success(inspection())))
+      .mockResolvedValueOnce(jsonResponse({
+        success: false,
+        code: 'TARGET_UNREACHABLE',
+        message: '新站点暂时无法读取',
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { result } = renderHook(() => useNoviceCalculator())
+
+    act(() => result.current.setBaseUrl('https://relay.example.com'))
+    await act(async () => result.current.connect())
+    act(() => result.current.setCacheHitRatePercent('35'))
+    await waitFor(() => expect(result.current.result).not.toBeNull())
+
+    const previousResult = result.current.result
+    act(() => result.current.setBaseUrl('https://unreachable.example.com'))
+    await act(async () => result.current.connect())
+
+    expect(result.current.requestState).toBe('error')
+    expect(result.current.requestError).toBe('新站点暂时无法读取')
+    expect(result.current.baseUrl).toBe('https://relay.example.com')
+    expect(result.current.inspection?.baseUrl).toBe('https://relay.example.com')
+    expect(result.current.cacheHitRatePercent).toBe('35')
+    expect(result.current.result).toEqual(previousResult)
+  })
+
+  it('重新读取同一站点时保留用户手动覆盖的缓存率', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(success(inspection()))))
+    const { result } = renderHook(() => useNoviceCalculator())
+
+    act(() => result.current.setBaseUrl('https://relay.example.com'))
+    await act(async () => result.current.connect())
+    act(() => result.current.setCacheHitRatePercent('35'))
+    await act(async () => result.current.connect())
+
+    expect(result.current.cacheHitRatePercent).toBe('35')
+    expect(result.current.cacheRateMode).toBe('manual')
+    expect(result.current.result).not.toBeNull()
+  })
+
   it('Krill 多线路和多渠道必须分别选择，综合倍率与成本不会重复应用线路倍率', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(success(krillInspection()))))
     const { result } = renderHook(() => useNoviceCalculator())

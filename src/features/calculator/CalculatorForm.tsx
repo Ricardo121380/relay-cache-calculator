@@ -29,6 +29,7 @@ import { NoviceMode, describeNoviceUnitPrices } from '../novice/NoviceMode'
 import { useNoviceCalculator, type NoviceController } from '../novice/useNoviceCalculator'
 import { NoviceCompareMode } from '../novice/NoviceCompareMode'
 import { useNoviceCompareCalculator } from '../novice/useNoviceCompareCalculator'
+import { useNoviceManualDraft } from '../novice/useNoviceManualDraft'
 import { AgentMode } from '../agent/AgentMode'
 import { VisitCounter } from '../analytics/VisitCounter'
 
@@ -40,6 +41,7 @@ export function CalculatorForm() {
   const { settings, update, reset, clearLocalData } = persisted
   const novice = useNoviceCalculator()
   const noviceCompare = useNoviceCompareCalculator()
+  const noviceManualDraft = useNoviceManualDraft()
   const [topMode, setTopMode] = useState<TopMode>('novice')
   const [noviceView, setNoviceView] = useState<CalculatorSettings['mode']>('single')
   const [noviceFlow, setNoviceFlow] = useState<'automatic' | 'manual'>('automatic')
@@ -52,8 +54,11 @@ export function CalculatorForm() {
 
   const advancedInput = activeInput(settings)
   const advancedStations = activeStations(settings)
-  const manualInput = activeManualInput(settings, noviceView)
-  const manualStations = activeManualStations(settings, noviceView)
+  const persistedManualInput = activeManualInput(settings, noviceView)
+  const persistedManualStations = activeManualStations(settings, noviceView)
+  const activeManualDraft = noviceManualDraft.drafts[noviceView]
+  const manualInput = activeManualDraft?.input ?? persistedManualInput
+  const manualStations = activeManualDraft?.stations ?? persistedManualStations
   const advancedOutcomes = useMemo(() => calculateStations(advancedInput, advancedStations), [advancedInput, advancedStations])
   const manualOutcomes = useMemo(() => calculateStations(manualInput, manualStations), [manualInput, manualStations])
   const advancedRanking = useMemo(
@@ -116,6 +121,30 @@ export function CalculatorForm() {
     setTopMode(mode)
   }
 
+  const switchNoviceToManual = () => {
+    if (noviceView === 'compare') {
+      noviceManualDraft.activate('compare', noviceCompare.stations.map((station) => ({
+        name: station.name,
+        input: noviceCompare.reports[station.id]?.calculatorInput ?? null,
+      })), persistedManualInput, persistedManualStations)
+    } else {
+      noviceManualDraft.activate('single', [{
+        name: novice.inspection?.stationName || '中转站',
+        input: novice.calculatorInput,
+      }], persistedManualInput, persistedManualStations)
+    }
+    setNoviceFlow('manual')
+  }
+
+  const resetCurrent = () => {
+    noviceManualDraft.clear()
+    if (noviceAutomatic) {
+      noviceCompareActive ? noviceCompare.reset() : novice.reset()
+    } else {
+      reset()
+    }
+  }
+
   const copy = async () => {
     let text = ''
     if (topMode === 'agent') text = agentSkillText
@@ -167,7 +196,7 @@ export function CalculatorForm() {
         </div>
         <div className="calc__actions">
           <ThemeToggle value={settings.theme} onChange={(theme) => update({ theme })} />
-          {topMode !== 'agent' ? <button type="button" className="btn btn--ghost" onClick={noviceAutomatic ? noviceCompareActive ? noviceCompare.reset : novice.reset : reset}>重置</button> : null}
+          {topMode !== 'agent' ? <button type="button" className="btn btn--ghost" onClick={resetCurrent}>重置</button> : null}
           <button type="button" className="btn btn--primary" onClick={copy} disabled={copyDisabled}>
             <svg className="btn__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="10" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" /></svg>
             <span>{copied ? '已复制 ✓' : topMode === 'agent' ? '复制 Skill' : '复制结果'}</span>
@@ -201,15 +230,22 @@ export function CalculatorForm() {
           </div></header>
 
           {topMode === 'agent' ? <AgentMode onLoaded={handleAgentLoaded} /> : null}
-          {noviceAutomatic && noviceView === 'single' ? <NoviceMode controller={novice} onSwitchManual={() => setNoviceFlow('manual')} /> : null}
-          {noviceAutomatic && noviceView === 'compare' ? <NoviceCompareMode controller={noviceCompare} onSwitchManual={() => setNoviceFlow('manual')} /> : null}
+          <div style={{ display: noviceAutomatic && noviceView === 'single' ? 'contents' : 'none' }} aria-hidden={!(noviceAutomatic && noviceView === 'single')}>
+            <NoviceMode controller={novice} onSwitchManual={switchNoviceToManual} />
+          </div>
+          <div style={{ display: noviceAutomatic && noviceView === 'compare' ? 'contents' : 'none' }} aria-hidden={!(noviceAutomatic && noviceView === 'compare')}>
+            <NoviceCompareMode controller={noviceCompare} onSwitchManual={switchNoviceToManual} />
+          </div>
           {noviceManual ? <>
             <div className="novice-manual-switch"><div><strong>手动填写</strong><span>仅填写自动读取缺失的关键参数。</span></div><button type="button" className="btn btn--ghost" onClick={() => setNoviceFlow('automatic')}>返回自动读取</button></div>
             <SimpleMode
               compare={noviceView === 'compare'} input={manualInput} models={models} stations={manualStations}
-              onSelectModel={(model) => persisted.selectManualModel(noviceView, model)} onUpdateInput={(patch) => persisted.updateManualInput(noviceView, patch)}
-              onUpdateSingle={persisted.updateManualSingleStation} onUpdateStation={persisted.updateManualStation}
-              onAddStation={persisted.addManualStation} onRemoveStation={persisted.removeManualStation}
+              onSelectModel={(model) => activeManualDraft ? noviceManualDraft.selectModel(noviceView, model) : persisted.selectManualModel(noviceView, model)}
+              onUpdateInput={(patch) => activeManualDraft ? noviceManualDraft.updateInput(noviceView, patch) : persisted.updateManualInput(noviceView, patch)}
+              onUpdateSingle={(patch) => activeManualDraft ? noviceManualDraft.updateStation(noviceView, 0, patch) : persisted.updateManualSingleStation(patch)}
+              onUpdateStation={(index, patch) => activeManualDraft ? noviceManualDraft.updateStation(noviceView, index, patch) : persisted.updateManualStation(index, patch)}
+              onAddStation={() => activeManualDraft ? noviceManualDraft.addStation(noviceView) : persisted.addManualStation()}
+              onRemoveStation={(index) => activeManualDraft ? noviceManualDraft.removeStation(noviceView, index) : persisted.removeManualStation(index)}
               onSwitchAdvanced={() => setTopMode('advanced')} errors={manualErrors}
             />
           </> : null}

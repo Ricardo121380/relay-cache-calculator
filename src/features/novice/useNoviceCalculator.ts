@@ -93,13 +93,15 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
   const setSupplementMethod = useCallback((method: NoviceSupplementMethod) => {
     setSupplementMethodState(method)
     if (method !== 'api-key') clearSecret()
-    if (method !== 'bill-file') clearBilling()
-  }, [clearBilling, clearSecret])
+  }, [clearSecret])
 
-  const applySelection = useCallback((selection: Selection) => {
+  const applySelection = useCallback((selection: Selection, preserveManualCacheRate = false) => {
     setSelectedModelName(selection.modelName)
     setSelectedGroupId(selection.groupId)
     setSelectedChannelId(selection.channelId)
+    if (preserveManualCacheRate) {
+      return
+    }
     if (selection.cacheStat) {
       setCacheHitRatePercentState(selection.cacheStat.hitRatePercent)
       setCacheRateMode('automatic')
@@ -136,10 +138,9 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
 
       if (sequence !== requestSequence.current) return
       if (!response.success) {
-        setInspection(null)
+        if (inspection) setBaseUrl(inspection.baseUrl)
         setRequestState('error')
         setRequestError(response.message)
-        applySelection({ modelName: '', groupId: '', channelId: '', cacheStat: null })
         return
       }
 
@@ -158,27 +159,46 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
       oneTimeApiKey = ''
       if (sequence !== requestSequence.current) return
 
-      const nextInspection = mergeCredentialData(response.data, credentialResult)
+      let nextInspection = mergeCredentialData(response.data, credentialResult)
+      const sameStation = sameRelayBaseUrl(inspection?.baseUrl, nextInspection.baseUrl)
+      if (sameStation && billingSummary) {
+        nextInspection = mergeBillingInspection(nextInspection, nextInspection.baseUrl, billingSummary)
+      } else if (!sameStation) {
+        clearBilling()
+      }
       const selection = chooseInitialSelection(nextInspection)
+      const preserveManual = sameStation && selection.modelName === selectedModelName
       setInspection(nextInspection)
       setBaseUrl(nextInspection.baseUrl)
       setRequestState('success')
       setRequestError(null)
-      setManualStationRatio('')
-      setManualCompletionRatio('')
-      setManualCacheRatio('')
-      applySelection(selection)
+      if (!preserveManual) {
+        setManualStationRatio('')
+        setManualCompletionRatio('')
+        setManualCacheRatio('')
+      }
+      applySelection(selection, preserveManual && cacheRateMode === 'manual')
     } catch (error) {
       if (sequence !== requestSequence.current || controller.signal.aborted) return
-      setInspection(null)
+      if (inspection) setBaseUrl(inspection.baseUrl)
       setRequestState('error')
       setRequestError(error instanceof Error ? error.message : '连接失败，请稍后重试')
-      applySelection({ modelName: '', groupId: '', channelId: '', cacheStat: null })
     } finally {
       oneTimeApiKey = ''
       if (sequence === requestSequence.current) activeRequest.current = null
     }
-  }, [apiKey, applySelection, baseUrl, clearSecret, supplementMethod])
+  }, [
+    apiKey,
+    applySelection,
+    baseUrl,
+    billingSummary,
+    cacheRateMode,
+    clearBilling,
+    clearSecret,
+    inspection,
+    selectedModelName,
+    supplementMethod,
+  ])
 
   const importBilling = useCallback(async (file: File) => {
     const cleanBaseUrl = billingBaseUrl(baseUrl)
@@ -186,7 +206,10 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
     setBillingError(null)
     try {
       const summary = await analyzeBillingFile(file)
-      const nextInspection = mergeBillingInspection(inspection, cleanBaseUrl, summary)
+      const sameStation = sameRelayBaseUrl(inspection?.baseUrl, cleanBaseUrl)
+      const nextInspection = mergeBillingInspection(sameStation ? inspection : null, cleanBaseUrl, summary)
+      const selection = chooseInitialSelection(nextInspection)
+      const preserveManual = sameStation && selection.modelName === selectedModelName
       setBillingSummary(summary)
       setBillingFileName(file.name)
       setInspection(nextInspection)
@@ -194,15 +217,17 @@ export function useNoviceCalculator(options: NoviceCalculatorOptions = {}) {
       setRequestState('success')
       setRequestError(null)
       setBillingState('success')
-      setManualStationRatio('')
-      setManualCompletionRatio('')
-      setManualCacheRatio('')
-      applySelection(chooseInitialSelection(nextInspection))
+      if (!preserveManual) {
+        setManualStationRatio('')
+        setManualCompletionRatio('')
+        setManualCacheRatio('')
+      }
+      applySelection(selection, preserveManual && cacheRateMode === 'manual')
     } catch (error) {
       setBillingState('error')
       setBillingError(error instanceof Error ? error.message : '账单解析失败')
     }
-  }, [applySelection, baseUrl, inspection])
+  }, [applySelection, baseUrl, cacheRateMode, inspection, selectedModelName])
 
   const selectedModel = useMemo(
     () => inspection?.models.find((model) => model.modelName === selectedModelName) ?? null,
@@ -567,6 +592,15 @@ function billingBaseUrl(value: string): string {
     throw new Error('账单分析需要先填写 HTTPS 中转站地址')
   }
   return url.origin
+}
+
+function sameRelayBaseUrl(left: string | undefined, right: string): boolean {
+  if (!left) return false
+  try {
+    return new URL(left).origin === new URL(right).origin
+  } catch {
+    return false
+  }
 }
 
 function mergeBillingInspection(

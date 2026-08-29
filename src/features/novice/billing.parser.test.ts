@@ -43,4 +43,41 @@ describe('billing parser', () => {
     expect(summary.models[0].cacheHitRatePercent).toBeNull()
     expect(summary.warnings.join('')).toContain('缓存 Token')
   })
+
+  it('识别中文 New API 导出的令牌、详情与金额字段', () => {
+    const summary = parseBillingFile('中文账单.csv', [
+      '时间,令牌分组,模型名称,提示Token,补全Token,其他,金额',
+      '2026-08-24 15:35:24,codex福利,gpt-5.6-sol,30240,469,"{""cache_tokens"":13056,""model_ratio"":2.5,""group_ratio"":0.15,""completion_ratio"":6,""cache_ratio"":0.1}",0.015978',
+    ].join('\n'))
+
+    expect(summary.platform).toBe('new-api')
+    expect(summary.models[0]).toMatchObject({
+      modelName: 'gpt-5.6-sol',
+      groupName: 'codex福利',
+      inputTokens: '30240',
+      outputTokens: '469',
+      cacheReadTokens: '13056',
+      observedStationMultiplier: '0.375',
+      completionRatio: '6',
+      cacheRatio: '0.1',
+      billedCost: '0.015978',
+    })
+  })
+
+  it('识别输入与缓存读分列的自研账单，按两者之和计算总输入', () => {
+    const summary = parseBillingFile('自研账单.csv', [
+      '时间,模型,输入,输出,缓存读,费用,状态',
+      '2026/08/21 18:20:49,gpt-5.6-sol,1260,1144,153344,0.011729,成功',
+    ].join('\n'))
+
+    expect(summary.platform).toBe('generic')
+    expect(summary.models[0]).toMatchObject({
+      inputTokens: '154604',
+      outputTokens: '1144',
+      cacheReadTokens: '153344',
+      billedCost: '0.011729',
+      observedStationMultiplier: null,
+    })
+    expect(summary.warnings.join('')).toContain('站点倍率需要手动填写')
+  })
 })
